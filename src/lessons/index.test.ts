@@ -70,6 +70,27 @@ const solutions: ReadonlyArray<readonly [string, Solve]> = [
   ["herdr-agent-run", (state) => shell(state, "herdr agent start reviewer --kind codex --pane w1:p2", 'herdr agent prompt reviewer "Review the current diff" --wait')],
   ["herdr-agent-wait", (state) => shell(state, "herdr agent wait reviewer --until blocked", "herdr agent read reviewer")],
   ["herdr-skill", (state) => applyShellCommand(state, "npx skills add herdrdev/herdr --skill herdr -g", "herdr")],
+  ["herdr-field-review", (state) => shell(
+    state,
+    "herdr pane split --current --direction right --no-focus",
+    "herdr agent start reviewer --kind codex --pane w1:p2",
+    'herdr agent prompt reviewer "Review the current diff. Report blocking issues only." --wait --timeout 120000',
+    "herdr agent read reviewer --source recent-unwrapped --lines 120",
+  )],
+  ["herdr-field-worktree", (state) => shell(
+    state,
+    "herdr worktree create --cwd ~/projects/webapp --branch fix/session-timeout --base main --label session-timeout --focus",
+    "herdr pane split --current --direction right --no-focus",
+    "herdr agent start implementer --kind codex --pane w2:p2",
+    'herdr agent prompt implementer "Fix the flaky session timeout test and run the focused suite." --wait --timeout 120000',
+    "herdr agent read implementer --source recent-unwrapped --lines 120",
+  )],
+  ["herdr-field-blocked", (state) => shell(
+    state,
+    "herdr agent wait reviewer --until blocked --timeout 120000",
+    "herdr agent read reviewer --source visible",
+    "herdr agent send-keys reviewer esc",
+  )],
 ]
 
 describe("curriculum", () => {
@@ -111,6 +132,7 @@ describe("curriculum", () => {
       "herdr:Remote work",
       "herdr:Automation",
       "herdr:Extensions",
+      "herdr:Field exercises",
     ]))
   })
 
@@ -120,7 +142,9 @@ describe("curriculum", () => {
       const lesson = lessons.find((candidate) => candidate.slug === slug)
       expect(lesson, `missing lesson ${slug}`).toBeDefined()
       if (lesson === undefined) continue
-      expect(lesson.goal(solve(lesson.setup())), `unsolved lesson ${slug}`).toBe(true)
+      const solved = solve(lesson.setup())
+      expect(lesson.goal(solved), `unsolved lesson ${slug}`).toBe(true)
+      expect(lesson.steps?.every((step) => step.done(solved)) ?? true, `unfinished steps in ${slug}`).toBe(true)
     }
   })
 })

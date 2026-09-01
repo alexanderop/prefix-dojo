@@ -28,7 +28,7 @@ defineProps<{
 <template>
   <TerminalPane
     v-if="node.kind === 'leaf'"
-    :key="node.id"
+    :key="`${node.id}-${node.variant}`"
     :pane-id="node.id"
     :lines="node.lines"
     :title="titleOf(node.lines)"

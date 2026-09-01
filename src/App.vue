@@ -306,7 +306,10 @@ function closeHelp(): void {
 
 // Stays visible after the goal is met: the help lesson clears the moment help opens.
 const helpVisible = computed(() => helpOpen.value || state.value.mode.kind === "help")
-const lessonKeys = computed(() => taskKeys(lesson.value.task))
+const lessonKeys = computed(() => taskKeys([
+  lesson.value.task,
+  ...(lesson.value.steps?.map((step) => step.text) ?? []),
+].join(" ")))
 const sessionName = computed(() => (lesson.value.keymap === "tmux" ? "work" : "default"))
 const windowList = computed(() =>
   Array.from({ length: state.value.tabs }, (_, index) => {
@@ -389,6 +392,12 @@ function renderKeys(text: string): string {
 const bodyHtml = computed(() => renderKeys(lesson.value.body))
 const taskHtml = computed(() => renderKeys(lesson.value.task))
 const takeawayHtml = computed(() => renderKeys(lesson.value.takeaway))
+const lessonSteps = computed(() =>
+  lesson.value.steps?.map((step) => ({
+    html: renderKeys(step.text),
+    done: step.done(state.value),
+  })) ?? [],
+)
 function groupModules(items: Lesson[]): Array<{ name: string; items: Lesson[] }> {
   const groups: Array<{ name: string; items: Lesson[] }> = []
   for (const item of items) {
@@ -480,9 +489,15 @@ const isDrillUrgent = computed(() =>
             <p class="lesson-meta">{{ lesson.keymap }} · {{ trackPosition.current }} / {{ trackPosition.total }}</p>
             <button class="reset" @click="resetLesson">↺ reset</button>
           </div>
-          <!-- taskHtml and bodyHtml only interpolate our own lesson text into <kbd> tags -->
+          <!-- Lesson HTML only interpolates our own text into <kbd> tags. -->
           <p class="lesson-task"><span>DO</span> <span v-html="taskHtml"></span></p>
           <p class="lesson-body" v-html="bodyHtml"></p>
+          <ol v-if="lessonSteps.length > 0" class="lesson-steps" aria-label="exercise steps">
+            <li v-for="(step, index) in lessonSteps" :key="index" :class="{ complete: step.done }">
+              <span class="step-marker" aria-hidden="true">{{ step.done ? "✓" : index + 1 }}</span>
+              <span v-html="step.html"></span>
+            </li>
+          </ol>
 
           <section
             v-if="isNavigationLesson && navigationDrill.kind !== 'finished'"

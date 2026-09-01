@@ -16,6 +16,10 @@ export interface Lesson {
   /** Text in square brackets renders as a keycap or command. */
   body: string
   task: string
+  steps?: ReadonlyArray<{
+    text: string
+    done: (state: TrainerState) => boolean
+  }>
   takeaway: string
   keymap: Keymap
   input: "keyboard" | "mouse" | "shell"
@@ -818,6 +822,143 @@ export const lessons: Lesson[] = [
     input: "shell",
     setup: () => oneShell(`${DIM}# plugins are executable code, not themes${X}`),
     goal: (state) => did(state, "listed-plugins"),
+  },
+  {
+    slug: "herdr-field-review",
+    track: "herdr",
+    module: "Field exercises",
+    title: "Review a risky diff beside your work",
+    body:
+      "You changed authentication code and want an independent review without leaving your main shell. Build a sibling pane, run a named reviewer there, and collect its report.",
+    task: "Create a review lane and bring the result back to your shell.",
+    steps: [
+      {
+        text: "Type [herdr pane split --current --direction right --no-focus] and press [enter].",
+        done: (state) => did(state, "automated-pane"),
+      },
+      {
+        text: "Type [herdr agent start reviewer --kind codex --pane w1:p2] and press [enter].",
+        done: (state) => did(state, "started-agent"),
+      },
+      {
+        text: "Type [herdr agent prompt reviewer \"Review the current diff. Report blocking issues only.\" --wait --timeout 120000] and press [enter].",
+        done: (state) => did(state, "prompted-agent"),
+      },
+      {
+        text: "Type [herdr agent read reviewer --source recent-unwrapped --lines 120] and press [enter].",
+        done: (state) => did(state, "read-agent"),
+      },
+    ],
+    takeaway:
+      "This is the core automation loop: create a place, start a named agent, prompt it with a bounded wait, then read the result. The main shell stays focused throughout.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: shellPane(0, [
+          `${DIM}~/projects/webapp  branch: feat/session-hardening${X}`,
+          `${Y}git diff: 4 files changed in auth and session code${X}`,
+        ]),
+        activePaneId: 0,
+      }),
+    goal: (state) =>
+      did(state, "automated-pane") &&
+      did(state, "started-agent") &&
+      did(state, "prompted-agent") &&
+      did(state, "read-agent"),
+  },
+  {
+    slug: "herdr-field-worktree",
+    track: "herdr",
+    module: "Field exercises",
+    title: "Isolate a flaky test fix",
+    body:
+      "A second agent needs to fix a flaky session test while your current branch stays untouched. Give that work its own checkout and keep the branch visible as a Herdr workspace.",
+    task: "Create a worktree, run an implementer inside it, and inspect the result.",
+    steps: [
+      {
+        text: "Type [herdr worktree create --cwd ~/projects/webapp --branch fix/session-timeout --base main --label session-timeout --focus] and press [enter].",
+        done: (state) => did(state, "created-worktree"),
+      },
+      {
+        text: "Type [herdr pane split --current --direction right --no-focus] and press [enter].",
+        done: (state) => did(state, "automated-pane"),
+      },
+      {
+        text: "Type [herdr agent start implementer --kind codex --pane w2:p2] and press [enter].",
+        done: (state) => did(state, "started-agent"),
+      },
+      {
+        text: "Type [herdr agent prompt implementer \"Fix the flaky session timeout test and run the focused suite.\" --wait --timeout 120000] and press [enter].",
+        done: (state) => did(state, "prompted-agent"),
+      },
+      {
+        text: "Type [herdr agent read implementer --source recent-unwrapped --lines 120] and press [enter].",
+        done: (state) => did(state, "read-agent"),
+      },
+    ],
+    takeaway:
+      "A worktree gives the agent a separate checkout and branch. Review its changes before removal. Herdr removes the checkout, not the Git branch.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: shellPane(0, [
+          `${DIM}~/projects/webapp  branch: feat/billing${X}`,
+          `${G}working tree clean${X}`,
+        ]),
+        activePaneId: 0,
+        workspaces: ["webapp"],
+      }),
+    goal: (state) =>
+      did(state, "created-worktree") &&
+      did(state, "automated-pane") &&
+      did(state, "started-agent") &&
+      did(state, "prompted-agent") &&
+      did(state, "read-agent"),
+  },
+  {
+    slug: "herdr-field-blocked",
+    track: "herdr",
+    module: "Field exercises",
+    title: "Handle a blocked agent without guessing",
+    body:
+      "The reviewer stopped at an approval dialog while you worked elsewhere. Read the live dialog before you send a deliberate key. Do not turn a status signal into automatic approval.",
+    task: "Wait for the block, inspect the dialog, and dismiss it safely.",
+    steps: [
+      {
+        text: "Type [herdr agent wait reviewer --until blocked --timeout 120000] and press [enter].",
+        done: (state) => did(state, "waited-agent"),
+      },
+      {
+        text: "Type [herdr agent read reviewer --source visible] and press [enter].",
+        done: (state) => did(state, "read-agent"),
+      },
+      {
+        text: "Type [herdr agent send-keys reviewer esc] and press [enter].",
+        done: (state) => did(state, "sent-agent-keys"),
+      },
+    ],
+    takeaway:
+      "Herdr refuses to prompt an agent that is already blocked. Read the dialog first, then use send-keys only for the response you intend.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# orchestration shell${X}`]),
+          leaf(1, [
+            `${C}codex${X}  ${R}● blocked${X}`,
+            `${Y}Allow edits to src/auth.ts? (y/n)${X}`,
+          ]),
+        ),
+        activePaneId: 0,
+        agentPanes: { reviewer: 1 },
+      }),
+    goal: (state) =>
+      did(state, "waited-agent") &&
+      did(state, "read-agent") &&
+      did(state, "sent-agent-keys"),
   },
 ]
 

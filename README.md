@@ -2,7 +2,9 @@
 
 Prefix Dojo is an interactive tmux and Herdr course. It teaches the terminal multiplexer model through a simulated terminal, then builds the Herdr-specific workflow on top.
 
-The course has 39 short lessons. The tmux track covers installation, named sessions, the prefix, panes, windows, scrollback, and persistence. The Herdr track adds installation, workspaces, agent states, mouse control, tabs, pane layouts, resize and copy modes, configuration, worktrees, notifications, renaming, closing, history search, persistence and server stop, remote and direct attach, integrations and detection explain, CLI agent automation, the agent skill, and plugins.
+The course has 42 lessons. The tmux track covers installation, named sessions, the prefix, panes, windows, scrollback, and persistence. The Herdr track adds installation, workspaces, agent states, mouse control, tabs, pane layouts, resize and copy modes, configuration, worktrees, notifications, renaming, closing, history search, persistence and server stop, remote and direct attach, integrations and detection explain, CLI agent automation, the agent skill, and plugins.
+
+The last three lessons are field exercises. You run an independent reviewer beside your current shell, isolate an implementation in a Git worktree, and inspect a blocked agent before you send input. These exercises follow the [official agent automation recipes](https://herdr.dev/docs/agent-automation/) and a [community report about using Herdr to fan out agents across worktrees](https://github.com/herdrdev/herdr/discussions/739).
 
 ## Run it
 

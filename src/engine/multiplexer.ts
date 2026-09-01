@@ -70,6 +70,7 @@ export type TrainerAction =
   | "prompted-agent"
   | "waited-agent"
   | "read-agent"
+  | "sent-agent-keys"
   | "attached-agent"
   | "explained-agent"
   | "installed-skill"
@@ -94,6 +95,8 @@ export interface TrainerState {
   sidebarVisible: boolean
   /** Pane a visible notification points at, for prefix + o. */
   notificationPaneId: number | null
+  /** Stable CLI agent names mapped to the pane that currently owns them. */
+  agentPanes: Record<string, number>
   actions: TrainerAction[]
   lastAction: string | null
 }
@@ -122,6 +125,7 @@ interface InitialStateInput {
   workspaces?: string[]
   activeWorkspace?: number
   notificationPaneId?: number
+  agentPanes?: Record<string, number>
 }
 
 const NEW_PANE_LINES = ["\x1b[90m# fresh pane. run a shell, server, or agent here\x1b[0m"]
@@ -154,6 +158,7 @@ export function initialState(input: InitialStateInput): TrainerState {
     zoomedPaneId: null,
     sidebarVisible: true,
     notificationPaneId: input.notificationPaneId ?? null,
+    agentPanes: { ...input.agentPanes },
     actions: [],
     lastAction: null,
   }
@@ -847,13 +852,24 @@ const DIM = "\x1b[90m"
 const X = "\x1b[0m"
 
 /** Replace what a static pane shows, so CLI-driven agents change the sidebar too. */
-function setPaneLines(state: TrainerState, id: number, lines: string[]): void {
-  state.root = mapLeaves(state.root, (pane) => (pane.id === id ? { ...pane, lines } : pane))
+function setPaneLines(
+  state: TrainerState,
+  id: number,
+  lines: string[],
+  variant?: PaneVariant,
+): void {
+  state.root = mapLeaves(state.root, (pane) =>
+    pane.id === id ? { ...pane, lines, variant: variant ?? pane.variant } : pane,
+  )
 }
 
 function paneIdFromTarget(target: string): number | null {
-  const match = /^w1:p(\d+)$/.exec(target)
+  const match = /^w\d+:p(\d+)$/.exec(target)
   return match ? Number(match[1]) - 1 : null
+}
+
+function namedAgentPane(state: TrainerState, name: string): number | null {
+  return state.agentPanes[name] ?? null
 }
 
 interface ShellCommandRule {
@@ -904,11 +920,24 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
   },
   {
     keymap: "herdr",
-    pattern: /^herdr pane split --current --direction right$/,
-    run: (state) => {
+    pattern: /^herdr pane split --current --direction right(?: --no-focus)?$/,
+    run: (state, match) => {
+      const activePaneId = state.activePaneId
       splitActive(state, "row")
+      if (match[0].endsWith(" --no-focus")) state.activePaneId = activePaneId
       state.lastAction = "created a pane through the Herdr CLI"
       record(state, "automated-pane")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr worktree create --cwd (\S+) --branch (\S+) --base (\S+) --label ([a-zA-Z0-9._-]+) --focus$/,
+    run: (state, match) => {
+      const label = match[4]
+      if (!state.workspaces.includes(label)) state.workspaces.push(label)
+      state.activeWorkspace = state.workspaces.indexOf(label)
+      state.lastAction = `created and focused worktree ${label} from ${match[3]}`
+      record(state, "created-worktree")
     },
   },
   {
@@ -931,44 +960,65 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
   },
   {
     keymap: "herdr",
-    pattern: /^herdr agent start reviewer --kind codex --pane (w1:p\d+)(?: -- .+)?$/,
+    pattern: /^herdr agent start ([a-z][a-z0-9_-]{0,31}) --kind ([a-z][a-z0-9_-]*) --pane (w\d+:p\d+)(?: -- .+)?$/,
     run: (state, match) => {
-      const id = paneIdFromTarget(match[1])
-      if (id !== null) setPaneLines(state, id, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}reviewer · ready for a prompt${X}`])
-      state.lastAction = `started codex in ${match[1]} as reviewer`
+      const [, name, kind, target] = match
+      const id = paneIdFromTarget(target)
+      if (id !== null) {
+        state.agentPanes[name] = id
+        setPaneLines(state, id, [`${C}${kind}${X}  ${G}● idle${X}`, `${DIM}${name} · ready for a prompt${X}`], "static")
+      }
+      state.lastAction = `started ${kind} in ${target} as ${name}`
       record(state, "started-agent")
     },
   },
   {
     keymap: "herdr",
-    pattern: /^herdr agent prompt reviewer "([^"]+)" --wait(?: --timeout \d+)?$/,
+    pattern: /^herdr agent prompt ([a-z][a-z0-9_-]{0,31}) "([^"]+)" --wait(?: --timeout \d+)?$/,
     run: (state, match) => {
-      const id = leaves(state.root).find((pane) => pane.lines[0]?.includes("codex"))?.id
-      if (id !== undefined) {
-        setPaneLines(state, id, [`${C}codex${X}  ${B}● done${X}`, `${DIM}reviewer · finished: ${match[1]}${X}`])
+      const [, name, prompt] = match
+      const id = namedAgentPane(state, name)
+      if (id !== null) {
+        const pane = leaves(state.root).find((candidate) => candidate.id === id)
+        const kind = pane?.lines[0]?.replace(ANSI, "").split(/\s+/)[0] ?? "agent"
+        setPaneLines(state, id, [`${C}${kind}${X}  ${B}● done${X}`, `${DIM}${name} · finished: ${prompt}${X}`])
       }
-      state.lastAction = "reviewer worked on the prompt; the wait returned when it settled"
+      state.lastAction = `${name} worked on the prompt; the wait returned when it settled`
       record(state, "prompted-agent")
     },
   },
   {
     keymap: "herdr",
-    pattern: /^herdr agent wait reviewer --until blocked(?: --timeout \d+)?$/,
-    run: (state) => {
-      const id = leaves(state.root).find((pane) => pane.lines[0]?.includes("codex"))?.id
-      if (id !== undefined) {
+    pattern: /^herdr agent wait ([a-z][a-z0-9_-]{0,31}) --until blocked(?: --timeout \d+)?$/,
+    run: (state, match) => {
+      const name = match[1]
+      const id = namedAgentPane(state, name)
+      if (id !== null) {
         setPaneLines(state, id, [`${C}codex${X}  ${R}● blocked${X}`, `${Y}allow edits to src/auth.ts? (y/n)${X}`])
       }
-      state.lastAction = "reviewer is blocked and waits for a decision"
+      state.lastAction = `${name} is blocked and waits for a decision`
       record(state, "waited-agent")
     },
   },
   {
     keymap: "herdr",
-    pattern: /^herdr agent read reviewer(?: --source \S+)?(?: --lines \d+)?$/,
-    run: (state) => {
-      state.lastAction = "read the reviewer pane without focusing it"
+    pattern: /^herdr agent read ([a-z][a-z0-9_-]{0,31})(?: --source \S+)?(?: --lines \d+)?$/,
+    run: (state, match) => {
+      state.lastAction = `read the ${match[1]} pane without focusing it`
       record(state, "read-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent send-keys ([a-z][a-z0-9_-]{0,31}) (esc|enter|y|n|ctrl\+c)$/,
+    run: (state, match) => {
+      const [, name, key] = match
+      const id = namedAgentPane(state, name)
+      if (id !== null) {
+        setPaneLines(state, id, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}${name} · dismissed the prompt with ${key}${X}`])
+      }
+      state.lastAction = `sent ${key} to ${name}`
+      record(state, "sent-agent-keys")
     },
   },
   {

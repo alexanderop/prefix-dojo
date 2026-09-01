@@ -413,6 +413,7 @@ describe("Herdr agent CLI", () => {
     ["herdr agent wait reviewer --until blocked", "waited-agent"],
     ["herdr agent read reviewer", "read-agent"],
     ["herdr agent read reviewer --source recent-unwrapped --lines 80", "read-agent"],
+    ["herdr agent send-keys reviewer esc", "sent-agent-keys"],
     ["herdr agent attach reviewer", "attached-agent"],
     ["herdr agent explain w1:p2", "explained-agent"],
     ["npx skills add herdrdev/herdr --skill herdr -g", "installed-skill"],
@@ -435,6 +436,59 @@ describe("Herdr agent CLI", () => {
 
     state = applyShellCommand(state, "herdr agent wait reviewer --until blocked", "herdr")
     expect(leaves(state.root)[1].lines[0]).toContain("● blocked")
+  })
+
+  it("keeps focus in the caller pane when a CLI split uses --no-focus", () => {
+    const state = applyShellCommand(
+      initialState({ root: leaf(0, [], "shell"), activePaneId: 0 }),
+      "herdr pane split --current --direction right --no-focus",
+      "herdr",
+    )
+
+    expect(leaves(state.root)).toHaveLength(2)
+    expect(state.activePaneId).toBe(0)
+  })
+
+  it("creates a focused worktree workspace and runs a named agent there", () => {
+    let state = applyShellCommand(
+      initialState({ root: leaf(0, [], "shell"), activePaneId: 0, workspaces: ["webapp"] }),
+      "herdr worktree create --cwd ~/projects/webapp --branch fix/session-timeout --base main --label session-timeout --focus",
+      "herdr",
+    )
+    expect(state.workspaces).toEqual(["webapp", "session-timeout"])
+    expect(state.activeWorkspace).toBe(1)
+
+    state = applyShellCommand(state, "herdr pane split --current --direction right --no-focus", "herdr")
+    state = applyShellCommand(state, "herdr agent start implementer --kind codex --pane w2:p2", "herdr")
+    expect(state.agentPanes).toEqual({ implementer: 1 })
+    expect(leaves(state.root)[0]).toMatchObject({ variant: "shell" })
+    expect(leaves(state.root)[1]).toMatchObject({ variant: "static" })
+
+    state = applyShellCommand(
+      state,
+      'herdr agent prompt implementer "Fix the flaky test." --wait --timeout 120000',
+      "herdr",
+    )
+    expect(leaves(state.root)[1].lines).toEqual(expect.arrayContaining([
+      expect.stringContaining("implementer · finished: Fix the flaky test."),
+    ]))
+  })
+
+  it("reads a blocked agent before sending a deliberate key", () => {
+    let state = initialState({
+      root: { kind: "split", dir: "row", children: [leaf(0, [], "shell"), leaf(1, ["codex  ● blocked"])] },
+      activePaneId: 0,
+      agentPanes: { reviewer: 1 },
+    })
+
+    state = applyShellCommand(state, "herdr agent wait reviewer --until blocked --timeout 120000", "herdr")
+    state = applyShellCommand(state, "herdr agent read reviewer --source visible", "herdr")
+    state = applyShellCommand(state, "herdr agent send-keys reviewer esc", "herdr")
+
+    expect(did(state, "waited-agent")).toBe(true)
+    expect(did(state, "read-agent")).toBe(true)
+    expect(did(state, "sent-agent-keys")).toBe(true)
+    expect(leaves(state.root)[1].lines[0]).toContain("● idle")
   })
 
   it("marks the server stopped as well as detached", () => {
