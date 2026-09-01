@@ -1,8 +1,11 @@
 import { describe, expect, it } from "vitest"
 import {
+  agentSummaries,
   applyKey,
   applyShellCommand,
+  containsPane,
   did,
+  executeShellCommand,
   initialState,
   leaf,
   leaves,
@@ -72,6 +75,9 @@ describe("tmux pane work", () => {
     let state = press(start(), "tmux", prefix, key("%"), prefix, key("z"))
     expect(state.zoomedPaneId).toBe(1)
     expect(leaves(state.root)).toHaveLength(2)
+    expect(containsPane(state.root, 0)).toBe(true)
+    expect(containsPane(state.root, 1)).toBe(true)
+    expect(containsPane(state.root, 99)).toBe(false)
 
     state = press(state, "tmux", prefix, key("z"))
     expect(state.zoomedPaneId).toBeNull()
@@ -109,6 +115,13 @@ describe("tmux windows, copy mode, and sessions", () => {
     )
     expect(state.mode.kind).toBe("terminal")
     expect(did(state, "entered-copy-mode")).toBe(true)
+  })
+
+  it("does not accept Herdr's vi selection keys", () => {
+    const state = press(start(), "tmux", prefix, key("["), key("v"), key("y"))
+
+    expect(did(state, "copied-selection")).toBe(false)
+    expect(state.mode.kind).toBe("copy")
   })
 
   it("detaches with prefix d", () => {
@@ -395,6 +408,13 @@ describe("Herdr copy-mode search", () => {
     state = press(state, "herdr", key("Escape"))
     expect(state.mode.kind).toBe("terminal")
   })
+
+  it("does not accept tmux's emacs selection keys", () => {
+    const state = press(history(), "herdr", prefix, key("["), key(" "), key("Enter"))
+
+    expect(did(state, "copied-selection")).toBe(false)
+    expect(state.mode.kind).toBe("copy")
+  })
 })
 
 describe("Herdr agent CLI", () => {
@@ -418,7 +438,11 @@ describe("Herdr agent CLI", () => {
     ["herdr agent explain w1:p2", "explained-agent"],
     ["npx skills add herdrdev/herdr --skill herdr -g", "installed-skill"],
   ] as const)("recognizes %s", (command, action) => {
-    const state = applyShellCommand(twoPanes(), command, "herdr")
+    const initial = twoPanes()
+    if (/agent (prompt|wait|read|send-keys|attach)/.test(command)) {
+      initial.agentPanes.reviewer = 1
+    }
+    const state = applyShellCommand(initial, command, "herdr")
     expect(did(state, action)).toBe(true)
   })
 
@@ -430,6 +454,7 @@ describe("Herdr agent CLI", () => {
   it("puts the started agent into the targeted pane and moves it through states", () => {
     let state = applyShellCommand(twoPanes(), "herdr agent start reviewer --kind codex --pane w1:p2", "herdr")
     expect(leaves(state.root)[1].lines[0]).toContain("● idle")
+    expect(agentSummaries(state)).toContainEqual({ paneId: 1, name: "reviewer", state: "idle" })
 
     state = applyShellCommand(state, 'herdr agent prompt reviewer "Review the current diff" --wait', "herdr")
     expect(leaves(state.root)[1].lines[0]).toContain("● done")
@@ -438,15 +463,44 @@ describe("Herdr agent CLI", () => {
     expect(leaves(state.root)[1].lines[0]).toContain("● blocked")
   })
 
+  it("rejects commands that target a pane or agent that does not exist", () => {
+    let state = applyShellCommand(
+      twoPanes(),
+      "herdr agent start reviewer --kind codex --pane w1:p999",
+      "herdr",
+    )
+    state = applyShellCommand(state, 'herdr agent prompt reviewer "Review this" --wait', "herdr")
+
+    expect(did(state, "started-agent")).toBe(false)
+    expect(did(state, "prompted-agent")).toBe(false)
+    expect(state.agentPanes).toEqual({})
+    expect(state.lastAction).toBe("no agent named reviewer")
+  })
+
+  it("removes a named agent when its pane closes", () => {
+    const base = initialState({
+      root: { kind: "split", dir: "row", children: [leaf(0), leaf(1, ["codex  ● idle"])] },
+      activePaneId: 1,
+      agentPanes: { reviewer: 1 },
+    })
+
+    const state = press(base, "herdr", prefix, key("x"))
+
+    expect(state.agentPanes).toEqual({})
+  })
+
   it("keeps focus in the caller pane when a CLI split uses --no-focus", () => {
-    const state = applyShellCommand(
+    const result = executeShellCommand(
       initialState({ root: leaf(0, [], "shell"), activePaneId: 0 }),
       "herdr pane split --current --direction right --no-focus",
       "herdr",
     )
+    const state = result.state
 
     expect(leaves(state.root)).toHaveLength(2)
     expect(state.activePaneId).toBe(0)
+    expect(result.output?.join("\n")).toContain("created")
+    expect(result.output?.join("\n")).not.toContain("already showing")
   })
 
   it("creates a focused worktree workspace and runs a named agent there", () => {

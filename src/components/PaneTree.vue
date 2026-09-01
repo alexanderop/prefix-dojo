@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type { PaneNode } from "../engine/multiplexer"
+import { containsPane, type PaneNode } from "../engine/multiplexer"
 import TerminalPane from "./TerminalPane.vue"
 
 defineOptions({ name: "PaneTree" })
@@ -18,10 +18,11 @@ function titleOf(lines: string[]): string {
 defineProps<{
   node: PaneNode
   activePaneId: number
+  zoomedPaneId: number | null
   /** Herdr draws no pane chrome when a tab holds a single pane. */
   single?: boolean
   focusPane: (id: number) => void
-  runShellCommand: (command: string) => void
+  runShellCommand: (command: string) => string[] | null
 }>()
 </script>
 
@@ -34,20 +35,27 @@ defineProps<{
     :title="titleOf(node.lines)"
     :variant="node.variant"
     :active="node.id === activePaneId"
-    :single="single === true"
+    :single="single === true || zoomedPaneId !== null"
+    :zoom-hidden="zoomedPaneId !== null && node.id !== zoomedPaneId"
     :focus-pane="focusPane"
     :run-shell-command="runShellCommand"
   />
-  <div v-else class="split" :class="node.dir">
+  <div
+    v-else
+    class="split"
+    :class="[node.dir, { 'zoom-hidden': zoomedPaneId !== null && !containsPane(node, zoomedPaneId) }]"
+  >
     <PaneTree
       :node="node.children[0]"
       :active-pane-id="activePaneId"
+      :zoomed-pane-id="zoomedPaneId"
       :focus-pane="focusPane"
       :run-shell-command="runShellCommand"
     />
     <PaneTree
       :node="node.children[1]"
       :active-pane-id="activePaneId"
+      :zoomed-pane-id="zoomedPaneId"
       :focus-pane="focusPane"
       :run-shell-command="runShellCommand"
     />
@@ -61,6 +69,9 @@ defineProps<{
   gap: 0;
   min-width: 0;
   min-height: 0;
+}
+.split.zoom-hidden {
+  display: none;
 }
 .split.row {
   flex-direction: row;

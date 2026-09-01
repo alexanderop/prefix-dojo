@@ -1,10 +1,10 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from "vue"
 import {
+  agentSummaries,
   applyKey,
-  applyShellCommand,
-  leaves,
-  type PaneNode,
+  executeShellCommand,
+  type AgentState,
   type TrainerState,
 } from "./engine/multiplexer"
 import {
@@ -73,8 +73,6 @@ const resetCount = ref(0)
 /** Keys pressed in this attempt, display spelling, newest last. */
 const keyTrail = ref<string[]>([])
 const flash = ref<"bad" | "good" | null>(null)
-/** Key help opened with the mouse; keyboard help lives in state.mode. */
-const helpOpen = ref(false)
 let ticker: number | undefined
 let flashTimer: number | undefined
 
@@ -125,7 +123,6 @@ function loadLesson(index: number): void {
   resetCount.value += 1
   keyTrail.value = []
   flash.value = null
-  helpOpen.value = false
 }
 
 watch(lessonIndex, async () => {
@@ -218,15 +215,6 @@ function onKeydown(e: KeyboardEvent): void {
   if (MODIFIER_KEYS.has(e.key)) return
   if (e.metaKey) return // leave cmd+r, cmd+w etc. to the browser
 
-  if (helpOpen.value) {
-    if (e.key === "Escape" || e.key === "q") {
-      e.preventDefault()
-      e.stopPropagation()
-      helpOpen.value = false
-    }
-    return
-  }
-
   if (isNavigationLesson.value && navigationDrill.value.kind === "finished") {
     if (e.key === "Enter") {
       e.preventDefault()
@@ -294,18 +282,17 @@ function isRejectedAction(action: string | null): boolean {
 
 function openHelp(): void {
   if (done.value || navigationDrill.value.kind === "running") return
-  helpOpen.value = true
+  state.value = { ...state.value, mode: { kind: "help" }, lastAction: "opened key help" }
 }
 
 function closeHelp(): void {
-  helpOpen.value = false
   if (state.value.mode.kind === "help") {
     state.value = { ...state.value, mode: { kind: "terminal" }, lastAction: "closed key help" }
   }
 }
 
 // Stays visible after the goal is met: the help lesson clears the moment help opens.
-const helpVisible = computed(() => helpOpen.value || state.value.mode.kind === "help")
+const helpVisible = computed(() => state.value.mode.kind === "help")
 const lessonKeys = computed(() => taskKeys([
   lesson.value.task,
   ...(lesson.value.steps?.map((step) => step.text) ?? []),
@@ -328,18 +315,16 @@ const windowList = computed(() =>
 const showSidebar = computed(() => lesson.value.keymap === "herdr" && state.value.sidebarVisible)
 const showTabs = computed(() => lesson.value.keymap === "herdr")
 
-type AgentState = "working" | "blocked" | "done" | "idle"
 const AGENT_GLYPH: Record<AgentState, string> = { working: "●", blocked: "◉", done: "●", idle: "○" }
 
-/** Panes whose first line names an agent and its state, for the sidebar's agents half. */
+/** Recognized agents, including stable CLI names when one has been assigned. */
 const agents = computed(() =>
-  leaves(state.value.root).flatMap((pane) => {
-    const first = (pane.lines[0] ?? "").replace(/\x1b\[[0-9;]*m/g, "").trim()
-    const match = /^(\S+)\s+●\s*(working|blocked|done|idle)/.exec(first)
-    if (!match) return []
-    const agentState = match[2] as AgentState
-    return [{ id: pane.id, name: match[1], state: agentState, glyph: AGENT_GLYPH[agentState] }]
-  }),
+  agentSummaries(state.value).map((agent) => ({
+    id: agent.paneId,
+    name: agent.name,
+    state: agent.state,
+    glyph: AGENT_GLYPH[agent.state],
+  })),
 )
 
 function focusPane(id: number): void {
@@ -356,13 +341,15 @@ function focusPane(id: number): void {
   checkGoal()
 }
 
-function runShellCommand(command: string): void {
-  if (done.value) return
+function runShellCommand(command: string): string[] | null {
+  if (done.value) return null
   if (startedAt.value === null) startedAt.value = performance.now()
   if (command.length > 0) pushTrail(command)
   pushTrail("enter")
-  state.value = applyShellCommand(state.value, command, lesson.value.keymap)
+  const result = executeShellCommand(state.value, command, lesson.value.keymap)
+  state.value = result.state
   checkGoal()
+  return result.output
 }
 
 onMounted(() => {
@@ -427,10 +414,6 @@ const trackPosition = computed(() => {
     current: items.findIndex((item) => item.slug === lesson.value.slug) + 1,
     total: items.length,
   }
-})
-const visibleRoot = computed<PaneNode>(() => {
-  if (state.value.zoomedPaneId === null) return state.value.root
-  return leaves(state.value.root).find((pane) => pane.id === state.value.zoomedPaneId) ?? state.value.root
 })
 const drillBestScore = computed(() => {
   const session = navigationDrill.value
@@ -599,9 +582,10 @@ const isDrillUrgent = computed(() =>
 
               <div class="panes" :key="`${lesson.slug}-${resetCount}`">
                 <PaneTree
-                  :node="visibleRoot"
+                  :node="state.root"
                   :active-pane-id="state.activePaneId"
-                  :single="visibleRoot.kind === 'leaf'"
+                  :single="state.root.kind === 'leaf'"
+                  :zoomed-pane-id="state.zoomedPaneId"
                   :focus-pane="focusPane"
                   :run-shell-command="runShellCommand"
                 />

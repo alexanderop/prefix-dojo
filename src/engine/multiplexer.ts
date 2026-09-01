@@ -117,6 +117,19 @@ export interface Rect {
   h: number
 }
 
+export type AgentState = "working" | "blocked" | "done" | "idle"
+
+export interface AgentSummary {
+  paneId: number
+  name: string
+  state: AgentState
+}
+
+export interface ShellCommandResult {
+  state: TrainerState
+  output: string[] | null
+}
+
 interface InitialStateInput {
   root: PaneNode
   activePaneId: number
@@ -167,6 +180,41 @@ export function initialState(input: InitialStateInput): TrainerState {
 export function leaves(node: PaneNode): Extract<PaneNode, { kind: "leaf" }>[] {
   if (node.kind === "leaf") return [node]
   return [...leaves(node.children[0]), ...leaves(node.children[1])]
+}
+
+export function containsPane(node: PaneNode, paneId: number): boolean {
+  if (node.kind === "leaf") return node.id === paneId
+  return containsPane(node.children[0], paneId) || containsPane(node.children[1], paneId)
+}
+
+function agentStateFromLine(line: string): AgentState | null {
+  const value = /●\s*(blocked|working|done|idle)/.exec(line)?.[1]
+  switch (value) {
+    case "working":
+    case "blocked":
+    case "done":
+    case "idle":
+      return value
+    default:
+      return null
+  }
+}
+
+export function agentSummaries(state: TrainerState): AgentSummary[] {
+  const namesByPane = new Map<number, string>()
+  for (const [name, paneId] of Object.entries(state.agentPanes)) namesByPane.set(paneId, name)
+
+  return leaves(state.root).flatMap((pane) => {
+    const first = (pane.lines[0] ?? "").replace(/\x1b\[[0-9;]*m/g, "").trim()
+    const process = /^(\S+)\s+●/.exec(first)?.[1]
+    const agentState = agentStateFromLine(first)
+    if (process === undefined || agentState === null) return []
+    return [{
+      paneId: pane.id,
+      name: namesByPane.get(pane.id) ?? process,
+      state: agentState,
+    }]
+  })
 }
 
 export function did(state: TrainerState, action: TrainerAction): boolean {
@@ -341,11 +389,15 @@ function closeActivePane(state: TrainerState): void {
     state.lastAction = "cannot close the last pane"
     return
   }
-  const remaining = removeLeaf(state.root, state.activePaneId)
+  const closedPaneId = state.activePaneId
+  const remaining = removeLeaf(state.root, closedPaneId)
   if (remaining === null) return
   state.root = remaining
-  delete state.paneNames[state.activePaneId]
-  if (state.notificationPaneId === state.activePaneId) state.notificationPaneId = null
+  delete state.paneNames[closedPaneId]
+  for (const [name, paneId] of Object.entries(state.agentPanes)) {
+    if (paneId === closedPaneId) delete state.agentPanes[name]
+  }
+  if (state.notificationPaneId === closedPaneId) state.notificationPaneId = null
   state.activePaneId = leaves(remaining)[0].id
   state.zoomedPaneId = null
   state.lastAction = "closed pane"
@@ -655,7 +707,7 @@ function runCopySearchInput(state: TrainerState, search: CopySearch, input: KeyI
   state.lastAction = "type the search term, then enter"
 }
 
-function runCopyMode(state: TrainerState, input: KeyInput): void {
+function runCopyMode(state: TrainerState, input: KeyInput, keymap: Keymap): void {
   const mode = state.mode.kind === "copy" ? state.mode : { selecting: false, search: null }
   if (mode.search?.typing) return runCopySearchInput(state, mode.search, input)
 
@@ -674,7 +726,7 @@ function runCopyMode(state: TrainerState, input: KeyInput): void {
     state.lastAction = "left copy mode"
     return
   }
-  if (input.key === "/" || input.key === "?") {
+  if (keymap === "herdr" && (input.key === "/" || input.key === "?")) {
     const direction = input.key === "/" ? "forward" : "backward"
     state.mode = {
       kind: "copy",
@@ -684,7 +736,7 @@ function runCopyMode(state: TrainerState, input: KeyInput): void {
     state.lastAction = direction === "forward" ? "search forward" : "search backward"
     return
   }
-  if (input.key.toLowerCase() === "n") {
+  if (keymap === "herdr" && input.key.toLowerCase() === "n") {
     if (mode.search === null || mode.search.matches === 0) {
       state.lastAction = "no search to repeat"
       return
@@ -694,12 +746,14 @@ function runCopyMode(state: TrainerState, input: KeyInput): void {
     record(state, "repeated-search")
     return
   }
-  if (input.key === " " || input.key === "v") {
+  const startsSelection = keymap === "tmux" ? input.key === " " : input.key === "v"
+  if (startsSelection) {
     state.mode = { kind: "copy", selecting: true, search: mode.search }
     state.lastAction = "started selection"
     return
   }
-  if ((input.key === "Enter" || input.key === "y") && mode.selecting) {
+  const copiesSelection = keymap === "tmux" ? input.key === "Enter" : input.key === "y"
+  if (copiesSelection && mode.selecting) {
     state.mode = { kind: "terminal" }
     state.lastAction = "copied selection"
     record(state, "copied-selection")
@@ -804,7 +858,7 @@ export function applyKey(state: TrainerState, input: KeyInput, keymap: Keymap): 
 
   switch (next.mode.kind) {
     case "copy":
-      runCopyMode(next, input)
+      runCopyMode(next, input, keymap)
       return next
     case "resize":
       runResizeMode(next, input)
@@ -863,19 +917,29 @@ function setPaneLines(
   )
 }
 
-function paneIdFromTarget(target: string): number | null {
-  const match = /^w\d+:p(\d+)$/.exec(target)
-  return match ? Number(match[1]) - 1 : null
+function paneIdFromTarget(state: TrainerState, target: string): number | null {
+  const match = /^w(\d+):p(\d+)$/.exec(target)
+  if (match === null) return null
+  const workspaceIndex = Number(match[1]) - 1
+  const paneId = Number(match[2]) - 1
+  if (workspaceIndex !== state.activeWorkspace) return null
+  return containsPane(state.root, paneId) ? paneId : null
 }
 
 function namedAgentPane(state: TrainerState, name: string): number | null {
-  return state.agentPanes[name] ?? null
+  const paneId = state.agentPanes[name]
+  return paneId !== undefined && containsPane(state.root, paneId) ? paneId : null
+}
+
+function commandError(state: TrainerState, message: string): string[] {
+  state.lastAction = message
+  return [`${R}error${X}  ${message}`]
 }
 
 interface ShellCommandRule {
   keymap: Keymap
   pattern: RegExp
-  run: (state: TrainerState, match: RegExpExecArray) => void
+  run: (state: TrainerState, match: RegExpExecArray) => string[]
 }
 
 const SHELL_COMMANDS: ShellCommandRule[] = [
@@ -884,6 +948,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     pattern: /^tmux attach -t work$/,
     run: (state) => {
       state.lastAction = "attached to tmux session work"
+      return [`${DIM}attached to session: work${X}`]
     },
   },
   {
@@ -892,6 +957,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "created and attached to tmux session work"
       record(state, "started-tmux")
+      return [`${G}created${X}  session: work`]
     },
   },
   {
@@ -900,6 +966,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "started or attached to the default Herdr session"
       record(state, "started-herdr")
+      return [`${G}attached${X}  default session · workspace: project`]
     },
   },
   {
@@ -908,6 +975,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "attached to workbox through SSH"
       record(state, "remote-attached")
+      return [`${G}connected${X}  workbox · default session`]
     },
   },
   {
@@ -916,6 +984,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "installed the Codex integration"
       record(state, "installed-integration")
+      return [`${G}installed${X}  codex integration`]
     },
   },
   {
@@ -923,10 +992,14 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     pattern: /^herdr pane split --current --direction right(?: --no-focus)?$/,
     run: (state, match) => {
       const activePaneId = state.activePaneId
+      const createdPaneId = state.nextPaneId
       splitActive(state, "row")
       if (match[0].endsWith(" --no-focus")) state.activePaneId = activePaneId
       state.lastAction = "created a pane through the Herdr CLI"
       record(state, "automated-pane")
+      return [
+        `${G}created${X}  pane w${state.activeWorkspace + 1}:p${createdPaneId + 1} · direction right`,
+      ]
     },
   },
   {
@@ -938,6 +1011,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
       state.activeWorkspace = state.workspaces.indexOf(label)
       state.lastAction = `created and focused worktree ${label} from ${match[3]}`
       record(state, "created-worktree")
+      return [`${G}created${X}  workspace ${label} · branch ${match[2]} · base ${match[3]}`]
     },
   },
   {
@@ -946,6 +1020,7 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "listed installed Herdr plugins"
       record(state, "listed-plugins")
+      return [`${DIM}no plugins installed${X}`]
     },
   },
   {
@@ -954,8 +1029,10 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.serverStopped = true
       state.detached = true
+      state.agentPanes = {}
       state.lastAction = "stopped the server; every pane and agent in it ended"
       record(state, "stopped-server")
+      return [`${DIM}stopped${X}  default session · every pane and agent ended`]
     },
   },
   {
@@ -963,13 +1040,14 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     pattern: /^herdr agent start ([a-z][a-z0-9_-]{0,31}) --kind ([a-z][a-z0-9_-]*) --pane (w\d+:p\d+)(?: -- .+)?$/,
     run: (state, match) => {
       const [, name, kind, target] = match
-      const id = paneIdFromTarget(target)
-      if (id !== null) {
-        state.agentPanes[name] = id
-        setPaneLines(state, id, [`${C}${kind}${X}  ${G}● idle${X}`, `${DIM}${name} · ready for a prompt${X}`], "static")
-      }
+      const id = paneIdFromTarget(state, target)
+      if (id === null) return commandError(state, `no pane ${target}`)
+      if (namedAgentPane(state, name) !== null) return commandError(state, `agent ${name} already exists`)
+      state.agentPanes[name] = id
+      setPaneLines(state, id, [`${C}${kind}${X}  ${G}● idle${X}`, `${DIM}${name} · ready for a prompt${X}`], "static")
       state.lastAction = `started ${kind} in ${target} as ${name}`
       record(state, "started-agent")
+      return [`{"result":{"agent":{"name":"${name}","kind":"${kind}","pane_id":"${target}","state":"idle"}}}`]
     },
   },
   {
@@ -978,13 +1056,13 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state, match) => {
       const [, name, prompt] = match
       const id = namedAgentPane(state, name)
-      if (id !== null) {
-        const pane = leaves(state.root).find((candidate) => candidate.id === id)
-        const kind = pane?.lines[0]?.replace(ANSI, "").split(/\s+/)[0] ?? "agent"
-        setPaneLines(state, id, [`${C}${kind}${X}  ${B}● done${X}`, `${DIM}${name} · finished: ${prompt}${X}`])
-      }
+      if (id === null) return commandError(state, `no agent named ${name}`)
+      const pane = leaves(state.root).find((candidate) => candidate.id === id)
+      const kind = pane?.lines[0]?.replace(ANSI, "").split(/\s+/)[0] ?? "agent"
+      setPaneLines(state, id, [`${C}${kind}${X}  ${B}● done${X}`, `${DIM}${name} · finished: ${prompt}${X}`])
       state.lastAction = `${name} worked on the prompt; the wait returned when it settled`
       record(state, "prompted-agent")
+      return [`{"result":{"agent":"${name}","state":"done","waited_ms":41830}}`]
     },
   },
   {
@@ -993,19 +1071,24 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state, match) => {
       const name = match[1]
       const id = namedAgentPane(state, name)
-      if (id !== null) {
-        setPaneLines(state, id, [`${C}codex${X}  ${R}● blocked${X}`, `${Y}allow edits to src/auth.ts? (y/n)${X}`])
-      }
+      if (id === null) return commandError(state, `no agent named ${name}`)
+      setPaneLines(state, id, [`${C}codex${X}  ${R}● blocked${X}`, `${Y}allow edits to src/auth.ts? (y/n)${X}`])
       state.lastAction = `${name} is blocked and waits for a decision`
       record(state, "waited-agent")
+      return [`{"result":{"agent":"${name}","state":"blocked","waited_ms":12045}}`]
     },
   },
   {
     keymap: "herdr",
     pattern: /^herdr agent read ([a-z][a-z0-9_-]{0,31})(?: --source \S+)?(?: --lines \d+)?$/,
     run: (state, match) => {
-      state.lastAction = `read the ${match[1]} pane without focusing it`
+      const name = match[1]
+      const id = namedAgentPane(state, name)
+      if (id === null) return commandError(state, `no agent named ${name}`)
+      const pane = leaves(state.root).find((candidate) => candidate.id === id)
+      state.lastAction = `read the ${name} pane without focusing it`
       record(state, "read-agent")
+      return [`${DIM}── ${name} · recent-unwrapped ──${X}`, ...(pane?.lines ?? [])]
     },
   },
   {
@@ -1014,27 +1097,38 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state, match) => {
       const [, name, key] = match
       const id = namedAgentPane(state, name)
-      if (id !== null) {
-        setPaneLines(state, id, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}${name} · dismissed the prompt with ${key}${X}`])
-      }
+      if (id === null) return commandError(state, `no agent named ${name}`)
+      setPaneLines(state, id, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}${name} · dismissed the prompt with ${key}${X}`])
       state.lastAction = `sent ${key} to ${name}`
       record(state, "sent-agent-keys")
+      return [`${G}sent${X}  ${key} · agent ${name}`]
     },
   },
   {
     keymap: "herdr",
-    pattern: /^herdr agent attach reviewer$/,
-    run: (state) => {
-      state.lastAction = "attached this terminal directly to reviewer"
-      record(state, "attached-agent")
-    },
-  },
-  {
-    keymap: "herdr",
-    pattern: /^herdr agent explain (w1:p\d+)$/,
+    pattern: /^herdr agent attach ([a-z][a-z0-9_-]{0,31})$/,
     run: (state, match) => {
-      state.lastAction = `explained how Herdr classified ${match[1]}`
+      const name = match[1]
+      if (namedAgentPane(state, name) === null) return commandError(state, `no agent named ${name}`)
+      state.lastAction = `attached this terminal directly to ${name}`
+      record(state, "attached-agent")
+      return [`${G}attached${X}  ${name} · ctrl+b q detaches · ctrl+b ctrl+b sends ctrl+b`]
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent explain (w\d+:p\d+)$/,
+    run: (state, match) => {
+      const target = match[1]
+      if (paneIdFromTarget(state, target) === null) return commandError(state, `no pane ${target}`)
+      state.lastAction = `explained how Herdr classified ${target}`
       record(state, "explained-agent")
+      return [
+        `agent:            codex`,
+        `state:            idle`,
+        `fallback:         default_known_agent_idle_fallback`,
+        `${DIM}no manifest rule matched; Herdr defaulted to idle${X}`,
+      ]
     },
   },
   {
@@ -1043,15 +1137,18 @@ const SHELL_COMMANDS: ShellCommandRule[] = [
     run: (state) => {
       state.lastAction = "installed the Herdr skill for your agents"
       record(state, "installed-skill")
+      return [
+        `${G}✔${X} herdr  ${DIM}→ ~/.claude/skills/herdr/SKILL.md, ~/.codex/skills/herdr/SKILL.md${X}`,
+      ]
     },
   },
 ]
 
-export function applyShellCommand(
+export function executeShellCommand(
   state: TrainerState,
   command: string,
   keymap: Keymap,
-): TrainerState {
+): ShellCommandResult {
   const next = structuredClone(state)
   const normalized = command.trim().replace(/\s+/g, " ")
 
@@ -1059,9 +1156,16 @@ export function applyShellCommand(
     if (rule.keymap !== keymap) continue
     const match = rule.pattern.exec(normalized)
     if (match === null) continue
-    rule.run(next, match)
-    break
+    return { state: next, output: rule.run(next, match) }
   }
 
-  return next
+  return { state: next, output: null }
+}
+
+export function applyShellCommand(
+  state: TrainerState,
+  command: string,
+  keymap: Keymap,
+): TrainerState {
+  return executeShellCommand(state, command, keymap).state
 }

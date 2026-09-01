@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
 import { bindings, PREFIX } from "../engine/bindings"
 import type { Keymap } from "../engine/multiplexer"
 
@@ -12,6 +12,16 @@ const props = defineProps<{
 const groups = computed(() => bindings[props.keymap])
 const wanted = computed(() => new Set(props.lessonKeys))
 const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
+const closeButton = ref<HTMLButtonElement | null>(null)
+let previousFocus: HTMLElement | null = null
+
+onMounted(async () => {
+  previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null
+  await nextTick()
+  closeButton.value?.focus()
+})
+
+onBeforeUnmount(() => previousFocus?.focus())
 </script>
 
 <template>
@@ -49,7 +59,9 @@ const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
         <span v-else>
           Real Herdr shows only the bindings from your config here. Press <kbd>/</kbd> to filter.
         </span>
-        <button class="help-close" type="button" @click="close">close <kbd>esc</kbd></button>
+        <button ref="closeButton" class="help-close" type="button" @click="close">
+          close <kbd>esc</kbd>
+        </button>
       </footer>
     </div>
   </div>

@@ -694,7 +694,15 @@ export const lessons: Lesson[] = [
       "Detach with [ctrl+b] [q]. Send a literal ctrl+b to the agent with [ctrl+b] [ctrl+b]. Add --takeover when another client owns the input, and use herdr terminal attach for a plain terminal.",
     keymap: "herdr",
     input: "shell",
-    setup: () => oneShell(`${DIM}# reviewer is a codex agent in the default session${X}`),
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# reviewer is a codex agent in the default session${X}`]),
+          leaf(1, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}reviewer · ready${X}`]),
+        ),
+        activePaneId: 0,
+        agentPanes: { reviewer: 1 },
+      }),
     goal: (state) => did(state, "attached-agent"),
   },
   {
@@ -731,6 +739,7 @@ export const lessons: Lesson[] = [
           leaf(1, [`${C}codex${X}  ${G}● idle${X}`, `${Y}▸ Continue with the rewrite? (Y/n)${X}`]),
         ),
         activePaneId: 0,
+        agentPanes: { reviewer: 1 },
       }),
     goal: (state) => did(state, "explained-agent"),
   },
@@ -790,6 +799,7 @@ export const lessons: Lesson[] = [
           leaf(1, [`${C}codex${X}  ${Y}● working${X}`, `${DIM}reviewer · editing src/auth.ts${X}`]),
         ),
         activePaneId: 0,
+        agentPanes: { reviewer: 1 },
       }),
     goal: (state) => did(state, "waited-agent") && did(state, "read-agent"),
   },

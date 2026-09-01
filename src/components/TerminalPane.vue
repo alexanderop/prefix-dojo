@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue"
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { Terminal, type IDisposable } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
 import "@xterm/xterm/css/xterm.css"
@@ -13,8 +13,9 @@ const props = defineProps<{
   variant: PaneVariant
   active: boolean
   single: boolean
+  zoomHidden: boolean
   focusPane: (id: number) => void
-  runShellCommand: (command: string) => void
+  runShellCommand: (command: string) => string[] | null
 }>()
 
 const host = ref<HTMLDivElement | null>(null)
@@ -85,6 +86,15 @@ watch(
   },
 )
 
+watch(
+  () => props.zoomHidden,
+  async (hidden) => {
+    if (hidden) return
+    await nextTick()
+    fit?.fit()
+  },
+)
+
 // A CLI-driven agent changes what a static pane shows. Shell panes own their
 // own buffer, so only static panes are redrawn.
 watch(
@@ -105,7 +115,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-  <div class="pane" :class="{ active, single, [`state-${agentState}`]: agentState !== null }" @mousedown="focusPane(paneId)">
+  <div
+    class="pane"
+    :class="{ active, single, 'zoom-hidden': zoomHidden, [`state-${agentState}`]: agentState !== null }"
+    @mousedown="focusPane(paneId)"
+  >
     <!-- Border runs through the middle of the edge cell, like a box-drawing glyph. -->
     <span class="pane-frame" aria-hidden="true"></span>
     <span v-if="!single" class="pane-title">{{ title || `pane ${paneId}` }}</span>
@@ -123,6 +137,9 @@ onBeforeUnmount(() => {
   min-height: 0;
   background: var(--term-bg);
   padding: 0.9em 1ch;
+}
+.pane.zoom-hidden {
+  display: none;
 }
 .pane.single {
   padding: 0.5em 1ch;
