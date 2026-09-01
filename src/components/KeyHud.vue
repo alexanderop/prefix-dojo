@@ -23,7 +23,10 @@ const label = computed(() => {
     case "prefix":
       return "prefix armed"
     case "copy":
+      if (props.mode.search?.typing) return "copy · search"
       return props.mode.selecting ? "copy · selecting" : "copy mode"
+    case "rename":
+      return `rename ${props.mode.target}`
     case "resize":
       return "resize mode"
     case "workspace-picker":
@@ -101,7 +104,8 @@ const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
 .hud.mode-resize,
 .hud.mode-workspace-picker,
 .hud.mode-help,
-.hud.mode-goto {
+.hud.mode-goto,
+.hud.mode-rename {
   border-color: var(--teal);
 }
 .hud.flash-bad {
@@ -154,14 +158,16 @@ const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
 .mode-resize .hud-mode,
 .mode-workspace-picker .hud-mode,
 .mode-help .hud-mode,
-.mode-goto .hud-mode {
+.mode-goto .hud-mode,
+.mode-rename .hud-mode {
   color: var(--teal);
 }
 .mode-copy .hud-dot,
 .mode-resize .hud-dot,
 .mode-workspace-picker .hud-dot,
 .mode-help .hud-dot,
-.mode-goto .hud-dot {
+.mode-goto .hud-dot,
+.mode-rename .hud-dot {
   background: var(--teal);
 }
 @keyframes pulse {

@@ -949,3 +949,29 @@ kbd {
     animation: none;
   }
 }
+
+/* ---- text entry inside an overlay (rename, copy-mode search) ---- */
+.overlay-input {
+  font-family: inherit;
+  min-height: 1.4em;
+  padding: 4px 8px;
+  border: 1px solid var(--faint2);
+  background: var(--term-bg);
+  color: var(--fg);
+  white-space: pre;
+}
+.overlay-caret {
+  color: var(--spot);
+  animation: caret-blink 900ms ease-in-out infinite;
+}
+@keyframes caret-blink {
+  50% {
+    opacity: 0.2;
+  }
+}
+.stopped-note {
+  border-color: var(--red);
+}
+.stopped-note strong {
+  color: var(--red);
+}

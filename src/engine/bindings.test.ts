@@ -3,19 +3,23 @@ import { bindings, modeHint, PREFIX, taskKeys } from "./bindings"
 import { applyKey, initialState, leaf, type KeyInput, type Keymap } from "./multiplexer"
 import { lessons } from "../lessons"
 
-const ARROWS: Record<string, string> = {
+const NAMED: Record<string, string> = {
   "←": "ArrowLeft",
   "→": "ArrowRight",
   "↑": "ArrowUp",
   "↓": "ArrowDown",
+  tab: "Tab",
 }
 
+/** Browsers report shift+t as "T" but shift+tab as "Tab" with shiftKey set. */
 function toInput(label: string): KeyInput {
   if (label === PREFIX) return { key: "b", ctrl: true, alt: false, shift: false }
   if (label.startsWith("shift+")) {
-    return { key: label.slice(6).toUpperCase(), ctrl: false, alt: false, shift: true }
+    const rest = label.slice(6)
+    const key = rest.length === 1 ? rest.toUpperCase() : (NAMED[rest] ?? rest)
+    return { key, ctrl: false, alt: false, shift: true }
   }
-  return { key: ARROWS[label] ?? label, ctrl: false, alt: false, shift: false }
+  return { key: NAMED[label] ?? label, ctrl: false, alt: false, shift: false }
 }
 
 function afterPrefix(keymap: Keymap, label: string) {

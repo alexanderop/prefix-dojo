@@ -60,6 +60,7 @@ export const bindings: Record<Keymap, BindingGroup[]> = {
         { keys: ["q"], does: "detach client, keep the server" },
         { keys: ["b"], does: "toggle the agent sidebar" },
         { keys: ["g"], does: "open the session navigator" },
+        { keys: ["o"], does: "jump to the visible notification" },
       ],
     },
     {
@@ -68,8 +69,11 @@ export const bindings: Record<Keymap, BindingGroup[]> = {
         { keys: ["v"], does: "split right (vertical divider)" },
         { keys: ["-"], does: "split down (horizontal divider)" },
         { keys: ["h", "j", "k", "l"], does: "move focus left / down / up / right" },
+        { keys: ["shift+h", "shift+j", "shift+k", "shift+l"], does: "swap with the neighbor" },
+        { keys: ["tab", "shift+tab"], does: "cycle to the next / previous pane" },
         { keys: ["z"], does: "zoom / unzoom the focused pane" },
         { keys: ["r"], does: "enter resize mode" },
+        { keys: ["shift+p"], does: "rename the focused pane" },
         { keys: ["x"], does: "close the focused pane" },
       ],
     },
@@ -80,6 +84,8 @@ export const bindings: Record<Keymap, BindingGroup[]> = {
         { keys: ["n"], does: "next tab" },
         { keys: ["p"], does: "previous tab" },
         { keys: ["1"], does: "…9 jump to a tab by number (counts from 1)" },
+        { keys: ["shift+t"], does: "rename the tab" },
+        { keys: ["shift+x"], does: "close the tab" },
       ],
     },
     {
@@ -87,6 +93,8 @@ export const bindings: Record<Keymap, BindingGroup[]> = {
       items: [
         { keys: ["shift+n"], does: "create a workspace" },
         { keys: ["w"], does: "workspace navigation" },
+        { keys: ["shift+w"], does: "rename the workspace" },
+        { keys: ["shift+d"], does: "close the workspace" },
         { keys: ["shift+g"], does: "create a Git worktree" },
       ],
     },
@@ -121,6 +129,16 @@ export function modeHint(mode: TrainerMode, keymap: Keymap): ModeHint {
         keys: bindings[keymap].flatMap((group) => group.items),
       }
     case "copy":
+      if (mode.search?.typing) {
+        return {
+          text: `Search ${mode.search.direction} through pane history. Type the term, then press enter.`,
+          keys: [
+            { keys: ["enter"], does: "run the search" },
+            { keys: ["backspace"], does: "edit the term" },
+            { keys: ["esc"], does: "cancel the search" },
+          ],
+        }
+      }
       return {
         text: mode.selecting
           ? "Selection started. Move to extend it, then copy."
@@ -135,10 +153,20 @@ export function modeHint(mode: TrainerMode, keymap: Keymap): ModeHint {
               ]
             : [
                 { keys: ["h", "j", "k", "l", "page up"], does: "move" },
+                { keys: ["/", "?"], does: "search forward / backward" },
+                { keys: ["n", "N"], does: "repeat the search, same / opposite direction" },
                 { keys: ["v"], does: "start selection" },
                 { keys: ["y"], does: "copy and leave" },
                 { keys: ["q"], does: "leave copy mode" },
               ],
+      }
+    case "rename":
+      return {
+        text: `Renaming the ${mode.target}. Keys go into the name field, not the shell.`,
+        keys: [
+          { keys: ["enter"], does: "save the name" },
+          { keys: ["esc"], does: "cancel" },
+        ],
       }
     case "resize":
       return {

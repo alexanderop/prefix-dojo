@@ -85,6 +85,17 @@ watch(
   },
 )
 
+// A CLI-driven agent changes what a static pane shows. Shell panes own their
+// own buffer, so only static panes are redrawn.
+watch(
+  () => props.lines,
+  (lines) => {
+    if (!term || props.variant !== "static") return
+    term.reset()
+    if (lines.length > 0) term.write(lines.join("\r\n") + "\r\n")
+  },
+)
+
 onBeforeUnmount(() => {
   alive = false
   observer?.disconnect()

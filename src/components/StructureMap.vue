@@ -29,13 +29,13 @@ const levels = computed<Level[]>(() => {
 
   const windowLevel: Level = {
     term: props.keymap === "tmux" ? "window" : "tab",
-    value: `${state.activeTab + 1} of ${state.tabs}`,
+    value: state.tabNames[state.activeTab] ?? `${state.activeTab + 1} of ${state.tabs}`,
     flags: [],
   }
 
   const pane: Level = {
     term: "pane",
-    value: `${paneIndex + 1} of ${panes.length}`,
+    value: state.paneNames[state.activePaneId] ?? `${paneIndex + 1} of ${panes.length}`,
     flags: paneFlags,
   }
 

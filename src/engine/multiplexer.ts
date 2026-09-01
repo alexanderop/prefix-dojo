@@ -10,14 +10,26 @@ export type PaneNode =
   | { kind: "leaf"; id: number; lines: string[]; variant: PaneVariant }
   | { kind: "split"; dir: SplitDir; children: [PaneNode, PaneNode] }
 
+export type RenameTarget = "tab" | "workspace" | "pane"
+
+export interface CopySearch {
+  query: string
+  direction: "forward" | "backward"
+  /** True while the learner is still typing the query. */
+  typing: boolean
+  /** Lines of the focused pane that matched the last executed search. */
+  matches: number
+}
+
 export type TrainerMode =
   | { kind: "terminal" }
   | { kind: "prefix" }
-  | { kind: "copy"; selecting: boolean }
+  | { kind: "copy"; selecting: boolean; search: CopySearch | null }
   | { kind: "resize" }
   | { kind: "workspace-picker"; selected: number }
   | { kind: "help" }
   | { kind: "goto" }
+  | { kind: "rename"; target: RenameTarget; value: string }
 
 export type TrainerAction =
   | "started-tmux"
@@ -26,15 +38,26 @@ export type TrainerAction =
   | "split-right"
   | "split-down"
   | "focused-pane"
+  | "swapped-pane"
+  | "cycled-pane"
   | "closed-pane"
   | "zoomed-pane"
   | "opened-tab"
   | "switched-tab"
+  | "closed-tab"
+  | "renamed-tab"
+  | "renamed-pane"
   | "entered-copy-mode"
   | "copied-selection"
+  | "searched-history"
+  | "repeated-search"
   | "detached"
   | "created-workspace"
   | "switched-workspace"
+  | "renamed-workspace"
+  | "closed-workspace"
+  | "opened-goto"
+  | "opened-notification"
   | "resized-pane"
   | "toggled-sidebar"
   | "created-worktree"
@@ -42,6 +65,14 @@ export type TrainerAction =
   | "installed-integration"
   | "automated-pane"
   | "listed-plugins"
+  | "stopped-server"
+  | "started-agent"
+  | "prompted-agent"
+  | "waited-agent"
+  | "read-agent"
+  | "attached-agent"
+  | "explained-agent"
+  | "installed-skill"
 
 export interface TrainerState {
   root: PaneNode
@@ -50,12 +81,19 @@ export interface TrainerState {
   keystrokes: number
   tabs: number
   activeTab: number
+  /** Names given with rename; unnamed tabs fall back to their number. */
+  tabNames: Record<number, string>
+  paneNames: Record<number, string>
   workspaces: string[]
   activeWorkspace: number
   nextPaneId: number
   detached: boolean
+  /** Set by `herdr server stop`: the session and every pane in it ended. */
+  serverStopped: boolean
   zoomedPaneId: number | null
   sidebarVisible: boolean
+  /** Pane a visible notification points at, for prefix + o. */
+  notificationPaneId: number | null
   actions: TrainerAction[]
   lastAction: string | null
 }
@@ -83,9 +121,11 @@ interface InitialStateInput {
   activeTab?: number
   workspaces?: string[]
   activeWorkspace?: number
+  notificationPaneId?: number
 }
 
 const NEW_PANE_LINES = ["\x1b[90m# fresh pane. run a shell, server, or agent here\x1b[0m"]
+const MAX_NAME_LENGTH = 24
 
 export function leaf(
   id: number,
@@ -104,12 +144,16 @@ export function initialState(input: InitialStateInput): TrainerState {
     keystrokes: 0,
     tabs: input.tabs ?? 1,
     activeTab: input.activeTab ?? 0,
+    tabNames: {},
+    paneNames: {},
     workspaces,
     activeWorkspace: input.activeWorkspace ?? 0,
     nextPaneId: maxPaneId(input.root) + 1,
     detached: false,
+    serverStopped: false,
     zoomedPaneId: null,
     sidebarVisible: true,
+    notificationPaneId: input.notificationPaneId ?? null,
     actions: [],
     lastAction: null,
   }
@@ -122,6 +166,11 @@ export function leaves(node: PaneNode): Extract<PaneNode, { kind: "leaf" }>[] {
 
 export function did(state: TrainerState, action: TrainerAction): boolean {
   return state.actions.includes(action)
+}
+
+/** Herdr addresses panes as `w1:p<n>`; the trainer numbers its panes from 0. */
+export function paneTarget(id: number): string {
+  return `w1:p${id + 1}`
 }
 
 function maxPaneId(node: PaneNode): number {
@@ -157,10 +206,18 @@ export function paneRects(
 
 type Direction = "left" | "right" | "up" | "down"
 
-function navigate(state: TrainerState, direction: Direction): void {
+const DIRECTION_WORDS: Record<Direction, string> = {
+  left: "to the left",
+  right: "to the right",
+  up: "above",
+  down: "below",
+}
+
+/** Nearest pane whose centre lies in the given direction from the focused pane. */
+function neighbor(state: TrainerState, direction: Direction): number | null {
   const rects = paneRects(state.root)
   const from = rects.get(state.activePaneId)
-  if (from === undefined) return
+  if (from === undefined) return null
 
   const fromX = from.x + from.w / 2
   const fromY = from.y + from.h / 2
@@ -181,27 +238,65 @@ function navigate(state: TrainerState, direction: Direction): void {
     if (best === null || distance < best.distance) best = { id, distance }
   }
 
-  if (best === null) {
-    state.lastAction = `no pane to the ${direction}`
+  return best?.id ?? null
+}
+
+function navigate(state: TrainerState, direction: Direction): void {
+  const target = neighbor(state, direction)
+  if (target === null) {
+    state.lastAction = `no pane ${DIRECTION_WORDS[direction]}`
     return
   }
 
-  state.activePaneId = best.id
+  state.activePaneId = target
   state.zoomedPaneId = null
-  state.lastAction = `focused pane ${best.id}`
+  state.lastAction = `focused pane ${target}`
   record(state, "focused-pane")
 }
 
-function replaceNode(node: PaneNode, targetId: number, replacement: PaneNode): PaneNode {
-  if (node.kind === "leaf") return node.id === targetId ? replacement : node
+function mapLeaves(node: PaneNode, transform: (pane: Extract<PaneNode, { kind: "leaf" }>) => PaneNode): PaneNode {
+  if (node.kind === "leaf") return transform(node)
   return {
     kind: "split",
     dir: node.dir,
-    children: [
-      replaceNode(node.children[0], targetId, replacement),
-      replaceNode(node.children[1], targetId, replacement),
-    ],
+    children: [mapLeaves(node.children[0], transform), mapLeaves(node.children[1], transform)],
   }
+}
+
+function replaceNode(node: PaneNode, targetId: number, replacement: PaneNode): PaneNode {
+  return mapLeaves(node, (pane) => (pane.id === targetId ? replacement : pane))
+}
+
+/** Exchange the positions of two panes without changing what runs in them. */
+function swapPanes(state: TrainerState, direction: Direction): void {
+  const target = neighbor(state, direction)
+  if (target === null) {
+    state.lastAction = `no neighbor ${DIRECTION_WORDS[direction]} to swap with`
+    return
+  }
+  const panes = leaves(state.root)
+  const active = panes.find((pane) => pane.id === state.activePaneId)
+  const other = panes.find((pane) => pane.id === target)
+  if (active === undefined || other === undefined) return
+
+  state.root = mapLeaves(state.root, (pane) => {
+    if (pane.id === active.id) return other
+    if (pane.id === other.id) return active
+    return pane
+  })
+  state.zoomedPaneId = null
+  state.lastAction = `swapped with the pane ${DIRECTION_WORDS[direction]}`
+  record(state, "swapped-pane")
+}
+
+function cyclePane(state: TrainerState, step: 1 | -1): void {
+  const panes = leaves(state.root)
+  const index = panes.findIndex((pane) => pane.id === state.activePaneId)
+  state.activePaneId = panes[(index + step + panes.length) % panes.length].id
+  state.zoomedPaneId = null
+  state.lastAction = step === 1 ? "cycled to the next pane" : "cycled to the previous pane"
+  record(state, "focused-pane")
+  record(state, "cycled-pane")
 }
 
 function splitActive(state: TrainerState, direction: SplitDir): void {
@@ -244,6 +339,8 @@ function closeActivePane(state: TrainerState): void {
   const remaining = removeLeaf(state.root, state.activePaneId)
   if (remaining === null) return
   state.root = remaining
+  delete state.paneNames[state.activePaneId]
+  if (state.notificationPaneId === state.activePaneId) state.notificationPaneId = null
   state.activePaneId = leaves(remaining)[0].id
   state.zoomedPaneId = null
   state.lastAction = "closed pane"
@@ -288,8 +385,56 @@ function switchTab(state: TrainerState, key: string, firstNumber: 0 | 1): boolea
   return true
 }
 
+function closeActiveTab(state: TrainerState): void {
+  if (state.tabs === 1) {
+    state.lastAction = "cannot close the last tab"
+    return
+  }
+  const closed = state.activeTab
+  const names: Record<number, string> = {}
+  for (const [key, name] of Object.entries(state.tabNames)) {
+    const index = Number(key)
+    if (index < closed) names[index] = name
+    else if (index > closed) names[index - 1] = name
+  }
+  state.tabNames = names
+  state.tabs -= 1
+  state.activeTab = Math.min(closed, state.tabs - 1)
+  state.lastAction = `closed tab ${closed + 1}`
+  record(state, "closed-tab")
+}
+
+function closeActiveWorkspace(state: TrainerState): void {
+  if (state.workspaces.length === 1) {
+    state.lastAction = "cannot close the last workspace"
+    return
+  }
+  const [closed] = state.workspaces.splice(state.activeWorkspace, 1)
+  state.activeWorkspace = Math.min(state.activeWorkspace, state.workspaces.length - 1)
+  state.lastAction = `closed workspace ${closed}`
+  record(state, "closed-workspace")
+}
+
+function startRename(state: TrainerState, target: RenameTarget): void {
+  state.mode = { kind: "rename", target, value: "" }
+  state.lastAction = `renaming the ${target}; type a name, then enter`
+}
+
+function openNotificationTarget(state: TrainerState): void {
+  if (state.notificationPaneId === null) {
+    state.lastAction = "no visible notification to open"
+    return
+  }
+  state.activePaneId = state.notificationPaneId
+  state.notificationPaneId = null
+  state.zoomedPaneId = null
+  state.lastAction = `jumped to pane ${state.activePaneId}, the notification target`
+  record(state, "focused-pane")
+  record(state, "opened-notification")
+}
+
 function enterCopyMode(state: TrainerState): void {
-  state.mode = { kind: "copy", selecting: false }
+  state.mode = { kind: "copy", selecting: false, search: null }
   state.lastAction = "entered copy mode"
   record(state, "entered-copy-mode")
 }
@@ -325,14 +470,8 @@ function runTmuxCommand(state: TrainerState, input: KeyInput): void {
       return navigate(state, "up")
     case "ArrowDown":
       return navigate(state, "down")
-    case "o": {
-      const panes = leaves(state.root)
-      const index = panes.findIndex((pane) => pane.id === state.activePaneId)
-      state.activePaneId = panes[(index + 1) % panes.length].id
-      state.lastAction = "cycled to the next pane"
-      record(state, "focused-pane")
-      return
-    }
+    case "o":
+      return cyclePane(state, 1)
     case "x":
       return closeActivePane(state)
     case "z":
@@ -352,22 +491,57 @@ function runTmuxCommand(state: TrainerState, input: KeyInput): void {
   }
 }
 
+/** Herdr's shifted prefix bindings. Browsers report shift+t as "T". */
+function runHerdrShiftedCommand(state: TrainerState, key: string): boolean {
+  switch (key.toLowerCase()) {
+    case "n":
+      state.workspaces.push(`workspace-${state.workspaces.length + 1}`)
+      state.activeWorkspace = state.workspaces.length - 1
+      state.lastAction = `created ${state.workspaces[state.activeWorkspace]}`
+      record(state, "created-workspace")
+      return true
+    case "g":
+      state.lastAction = "opened Git worktree creation"
+      record(state, "created-worktree")
+      return true
+    case "t":
+      startRename(state, "tab")
+      return true
+    case "w":
+      startRename(state, "workspace")
+      return true
+    case "p":
+      startRename(state, "pane")
+      return true
+    case "x":
+      closeActiveTab(state)
+      return true
+    case "d":
+      closeActiveWorkspace(state)
+      return true
+    case "h":
+      swapPanes(state, "left")
+      return true
+    case "j":
+      swapPanes(state, "down")
+      return true
+    case "k":
+      swapPanes(state, "up")
+      return true
+    case "l":
+      swapPanes(state, "right")
+      return true
+    case "tab":
+      cyclePane(state, -1)
+      return true
+    default:
+      return false
+  }
+}
+
 function runHerdrCommand(state: TrainerState, input: KeyInput): void {
   if (switchTab(state, input.key, 1)) return
-
-  if (input.shift && input.key.toLowerCase() === "n") {
-    state.workspaces.push(`workspace-${state.workspaces.length + 1}`)
-    state.activeWorkspace = state.workspaces.length - 1
-    state.lastAction = `created ${state.workspaces[state.activeWorkspace]}`
-    record(state, "created-workspace")
-    return
-  }
-
-  if (input.shift && input.key.toLowerCase() === "g") {
-    state.lastAction = "opened Git worktree creation"
-    record(state, "created-worktree")
-    return
-  }
+  if (input.shift && runHerdrShiftedCommand(state, input.key)) return
 
   switch (input.key) {
     case "?":
@@ -384,6 +558,8 @@ function runHerdrCommand(state: TrainerState, input: KeyInput): void {
       return navigate(state, "up")
     case "l":
       return navigate(state, "right")
+    case "Tab":
+      return cyclePane(state, 1)
     case "x":
       return closeActivePane(state)
     case "z":
@@ -396,6 +572,8 @@ function runHerdrCommand(state: TrainerState, input: KeyInput): void {
       return cycleTab(state, -1)
     case "[":
       return enterCopyMode(state)
+    case "o":
+      return openNotificationTarget(state)
     case "r":
       state.mode = { kind: "resize" }
       state.lastAction = "entered resize mode"
@@ -407,6 +585,7 @@ function runHerdrCommand(state: TrainerState, input: KeyInput): void {
     case "g":
       state.mode = { kind: "goto" }
       state.lastAction = "opened session navigator"
+      record(state, "opened-goto")
       return
     case "b":
       state.sidebarVisible = !state.sidebarVisible
@@ -420,20 +599,102 @@ function runHerdrCommand(state: TrainerState, input: KeyInput): void {
   }
 }
 
+const ANSI = /\x1b\[[0-9;]*m/g
+
+/** Herdr search is case-insensitive unless the query contains an uppercase letter. */
+function countMatches(state: TrainerState, query: string): number {
+  const pane = leaves(state.root).find((item) => item.id === state.activePaneId)
+  if (pane === undefined) return 0
+  const sensitive = /[A-Z]/.test(query)
+  const needle = sensitive ? query : query.toLowerCase()
+  return pane.lines.filter((line) => {
+    const text = line.replace(ANSI, "")
+    return (sensitive ? text : text.toLowerCase()).includes(needle)
+  }).length
+}
+
+function runCopySearchInput(state: TrainerState, search: CopySearch, input: KeyInput): void {
+  if (input.ctrl || input.alt) {
+    state.lastAction = "type the search term, then enter"
+    return
+  }
+  if (input.key === "Escape") {
+    state.mode = { kind: "copy", selecting: false, search: null }
+    state.lastAction = "cancelled search"
+    return
+  }
+  if (input.key === "Enter") {
+    if (search.query === "") {
+      state.lastAction = "type a search term first"
+      return
+    }
+    const matches = countMatches(state, search.query)
+    state.mode = { kind: "copy", selecting: false, search: { ...search, typing: false, matches } }
+    if (matches === 0) {
+      state.lastAction = `no match for "${search.query}"`
+      return
+    }
+    const where = search.direction === "forward" ? "next" : "previous"
+    state.lastAction = `jumped to the ${where} of ${matches} ${matches === 1 ? "line" : "lines"} matching "${search.query}"`
+    record(state, "searched-history")
+    return
+  }
+  if (input.key === "Backspace") {
+    state.mode = { kind: "copy", selecting: false, search: { ...search, query: search.query.slice(0, -1) } }
+    return
+  }
+  if (input.key.length === 1) {
+    state.mode = { kind: "copy", selecting: false, search: { ...search, query: search.query + input.key } }
+    return
+  }
+  state.lastAction = "type the search term, then enter"
+}
+
 function runCopyMode(state: TrainerState, input: KeyInput): void {
-  if (input.key === "Escape" || input.key === "q") {
+  const mode = state.mode.kind === "copy" ? state.mode : { selecting: false, search: null }
+  if (mode.search?.typing) return runCopySearchInput(state, mode.search, input)
+
+  if (input.key === "Escape") {
+    if (mode.selecting || mode.search !== null) {
+      state.mode = { kind: "copy", selecting: false, search: null }
+      state.lastAction = mode.selecting ? "cleared selection" : "cleared search"
+      return
+    }
     state.mode = { kind: "terminal" }
     state.lastAction = "left copy mode"
     return
   }
-
-  const selecting = state.mode.kind === "copy" && state.mode.selecting
+  if (input.key === "q") {
+    state.mode = { kind: "terminal" }
+    state.lastAction = "left copy mode"
+    return
+  }
+  if (input.key === "/" || input.key === "?") {
+    const direction = input.key === "/" ? "forward" : "backward"
+    state.mode = {
+      kind: "copy",
+      selecting: false,
+      search: { query: "", direction, typing: true, matches: 0 },
+    }
+    state.lastAction = direction === "forward" ? "search forward" : "search backward"
+    return
+  }
+  if (input.key.toLowerCase() === "n") {
+    if (mode.search === null || mode.search.matches === 0) {
+      state.lastAction = "no search to repeat"
+      return
+    }
+    const reverse = input.key === "N"
+    state.lastAction = reverse ? "jumped to the previous match" : "jumped to the next match"
+    record(state, "repeated-search")
+    return
+  }
   if (input.key === " " || input.key === "v") {
-    state.mode = { kind: "copy", selecting: true }
+    state.mode = { kind: "copy", selecting: true, search: mode.search }
     state.lastAction = "started selection"
     return
   }
-  if ((input.key === "Enter" || input.key === "y") && selecting) {
+  if ((input.key === "Enter" || input.key === "y") && mode.selecting) {
     state.mode = { kind: "terminal" }
     state.lastAction = "copied selection"
     record(state, "copied-selection")
@@ -454,6 +715,50 @@ function runResizeMode(state: TrainerState, input: KeyInput): void {
     return
   }
   state.lastAction = "resize mode expects h, j, k, l, or an arrow key"
+}
+
+function runRenameMode(state: TrainerState, input: KeyInput): void {
+  if (state.mode.kind !== "rename") return
+  const { target, value } = state.mode
+
+  if (input.ctrl || input.alt) {
+    state.lastAction = "type a name, then enter"
+    return
+  }
+  if (input.key === "Escape") {
+    state.mode = { kind: "terminal" }
+    state.lastAction = "cancelled rename"
+    return
+  }
+  if (input.key === "Enter") {
+    const name = value.trim()
+    if (name === "") {
+      state.lastAction = "name cannot be empty"
+      return
+    }
+    if (target === "tab") {
+      state.tabNames[state.activeTab] = name
+      record(state, "renamed-tab")
+    } else if (target === "workspace") {
+      state.workspaces[state.activeWorkspace] = name
+      record(state, "renamed-workspace")
+    } else {
+      state.paneNames[state.activePaneId] = name
+      record(state, "renamed-pane")
+    }
+    state.mode = { kind: "terminal" }
+    state.lastAction = `renamed the ${target} to ${name}`
+    return
+  }
+  if (input.key === "Backspace") {
+    state.mode = { kind: "rename", target, value: value.slice(0, -1) }
+    return
+  }
+  if (input.key.length === 1 && value.length < MAX_NAME_LENGTH) {
+    state.mode = { kind: "rename", target, value: value + input.key }
+    return
+  }
+  state.lastAction = "type a name, then enter"
 }
 
 function runWorkspacePicker(state: TrainerState, input: KeyInput): void {
@@ -499,6 +804,9 @@ export function applyKey(state: TrainerState, input: KeyInput, keymap: Keymap): 
     case "resize":
       runResizeMode(next, input)
       return next
+    case "rename":
+      runRenameMode(next, input)
+      return next
     case "workspace-picker":
       runWorkspacePicker(next, input)
       return next
@@ -530,6 +838,165 @@ export function applyKey(state: TrainerState, input: KeyInput, keymap: Keymap): 
   }
 }
 
+const C = "\x1b[36m"
+const G = "\x1b[32;1m"
+const Y = "\x1b[33;1m"
+const B = "\x1b[34;1m"
+const R = "\x1b[31m"
+const DIM = "\x1b[90m"
+const X = "\x1b[0m"
+
+/** Replace what a static pane shows, so CLI-driven agents change the sidebar too. */
+function setPaneLines(state: TrainerState, id: number, lines: string[]): void {
+  state.root = mapLeaves(state.root, (pane) => (pane.id === id ? { ...pane, lines } : pane))
+}
+
+function paneIdFromTarget(target: string): number | null {
+  const match = /^w1:p(\d+)$/.exec(target)
+  return match ? Number(match[1]) - 1 : null
+}
+
+interface ShellCommandRule {
+  keymap: Keymap
+  pattern: RegExp
+  run: (state: TrainerState, match: RegExpExecArray) => void
+}
+
+const SHELL_COMMANDS: ShellCommandRule[] = [
+  {
+    keymap: "tmux",
+    pattern: /^tmux attach -t work$/,
+    run: (state) => {
+      state.lastAction = "attached to tmux session work"
+    },
+  },
+  {
+    keymap: "tmux",
+    pattern: /^tmux new -s work$/,
+    run: (state) => {
+      state.lastAction = "created and attached to tmux session work"
+      record(state, "started-tmux")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr$/,
+    run: (state) => {
+      state.lastAction = "started or attached to the default Herdr session"
+      record(state, "started-herdr")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr --remote workbox$/,
+    run: (state) => {
+      state.lastAction = "attached to workbox through SSH"
+      record(state, "remote-attached")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr integration install codex$/,
+    run: (state) => {
+      state.lastAction = "installed the Codex integration"
+      record(state, "installed-integration")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr pane split --current --direction right$/,
+    run: (state) => {
+      splitActive(state, "row")
+      state.lastAction = "created a pane through the Herdr CLI"
+      record(state, "automated-pane")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr plugin list$/,
+    run: (state) => {
+      state.lastAction = "listed installed Herdr plugins"
+      record(state, "listed-plugins")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr server stop$/,
+    run: (state) => {
+      state.serverStopped = true
+      state.detached = true
+      state.lastAction = "stopped the server; every pane and agent in it ended"
+      record(state, "stopped-server")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent start reviewer --kind codex --pane (w1:p\d+)(?: -- .+)?$/,
+    run: (state, match) => {
+      const id = paneIdFromTarget(match[1])
+      if (id !== null) setPaneLines(state, id, [`${C}codex${X}  ${G}● idle${X}`, `${DIM}reviewer · ready for a prompt${X}`])
+      state.lastAction = `started codex in ${match[1]} as reviewer`
+      record(state, "started-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent prompt reviewer "([^"]+)" --wait(?: --timeout \d+)?$/,
+    run: (state, match) => {
+      const id = leaves(state.root).find((pane) => pane.lines[0]?.includes("codex"))?.id
+      if (id !== undefined) {
+        setPaneLines(state, id, [`${C}codex${X}  ${B}● done${X}`, `${DIM}reviewer · finished: ${match[1]}${X}`])
+      }
+      state.lastAction = "reviewer worked on the prompt; the wait returned when it settled"
+      record(state, "prompted-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent wait reviewer --until blocked(?: --timeout \d+)?$/,
+    run: (state) => {
+      const id = leaves(state.root).find((pane) => pane.lines[0]?.includes("codex"))?.id
+      if (id !== undefined) {
+        setPaneLines(state, id, [`${C}codex${X}  ${R}● blocked${X}`, `${Y}allow edits to src/auth.ts? (y/n)${X}`])
+      }
+      state.lastAction = "reviewer is blocked and waits for a decision"
+      record(state, "waited-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent read reviewer(?: --source \S+)?(?: --lines \d+)?$/,
+    run: (state) => {
+      state.lastAction = "read the reviewer pane without focusing it"
+      record(state, "read-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent attach reviewer$/,
+    run: (state) => {
+      state.lastAction = "attached this terminal directly to reviewer"
+      record(state, "attached-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^herdr agent explain (w1:p\d+)$/,
+    run: (state, match) => {
+      state.lastAction = `explained how Herdr classified ${match[1]}`
+      record(state, "explained-agent")
+    },
+  },
+  {
+    keymap: "herdr",
+    pattern: /^npx skills add herdrdev\/herdr --skill herdr -g$/,
+    run: (state) => {
+      state.lastAction = "installed the Herdr skill for your agents"
+      record(state, "installed-skill")
+    },
+  },
+]
+
 export function applyShellCommand(
   state: TrainerState,
   command: string,
@@ -538,30 +1005,12 @@ export function applyShellCommand(
   const next = structuredClone(state)
   const normalized = command.trim().replace(/\s+/g, " ")
 
-  if (keymap === "herdr" && normalized === "herdr --remote workbox") {
-    next.lastAction = "attached to workbox through SSH"
-    record(next, "remote-attached")
-  } else if (keymap === "herdr" && normalized === "herdr integration install codex") {
-    next.lastAction = "installed the Codex integration"
-    record(next, "installed-integration")
-  } else if (
-    keymap === "herdr" &&
-    normalized === "herdr pane split --current --direction right"
-  ) {
-    splitActive(next, "row")
-    next.lastAction = "created a pane through the Herdr CLI"
-    record(next, "automated-pane")
-  } else if (keymap === "tmux" && normalized === "tmux attach -t work") {
-    next.lastAction = "attached to tmux session work"
-  } else if (keymap === "tmux" && normalized === "tmux new -s work") {
-    next.lastAction = "created and attached to tmux session work"
-    record(next, "started-tmux")
-  } else if (keymap === "herdr" && normalized === "herdr") {
-    next.lastAction = "started or attached to the default Herdr session"
-    record(next, "started-herdr")
-  } else if (keymap === "herdr" && normalized === "herdr plugin list") {
-    next.lastAction = "listed installed Herdr plugins"
-    record(next, "listed-plugins")
+  for (const rule of SHELL_COMMANDS) {
+    if (rule.keymap !== keymap) continue
+    const match = rule.pattern.exec(normalized)
+    if (match === null) continue
+    rule.run(next, match)
+    break
   }
 
   return next

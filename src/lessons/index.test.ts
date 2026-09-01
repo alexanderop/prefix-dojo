@@ -25,6 +25,11 @@ function keys(
 
 type Solve = (state: TrainerState) => TrainerState
 
+const typed = (text: string): KeyInput[] => [...text].map((char) => key(char))
+
+const shell = (state: TrainerState, ...commands: string[]): TrainerState =>
+  commands.reduce((next, command) => applyShellCommand(next, command, "herdr"), state)
+
 const solutions: ReadonlyArray<readonly [string, Solve]> = [
   ["tmux-start", (state) => applyShellCommand(state, "tmux new -s work", "tmux")],
   ["tmux-prefix", keys("tmux", prefix, key("?"))],
@@ -53,6 +58,18 @@ const solutions: ReadonlyArray<readonly [string, Solve]> = [
   ["herdr-integration", (state) => applyShellCommand(state, "herdr integration install codex", "herdr")],
   ["herdr-automation", (state) => applyShellCommand(state, "herdr pane split --current --direction right", "herdr")],
   ["herdr-plugins", (state) => applyShellCommand(state, "herdr plugin list", "herdr")],
+  ["herdr-swap", keys("herdr", prefix, key("L", { shift: true }), prefix, key("Tab"))],
+  ["herdr-rename", keys("herdr", prefix, key("T", { shift: true }), ...typed("review"), key("Enter"), prefix, key("W", { shift: true }), ...typed("api"), key("Enter"))],
+  ["herdr-goto", keys("herdr", prefix, key("g"), key("Escape"))],
+  ["herdr-close", keys("herdr", prefix, key("x"), prefix, key("X", { shift: true }))],
+  ["herdr-search", keys("herdr", prefix, key("["), key("/"), ...typed("failed"), key("Enter"), key("n"))],
+  ["herdr-notification", keys("herdr", prefix, key("o"))],
+  ["herdr-stop", (state) => applyShellCommand(state, "herdr server stop", "herdr")],
+  ["herdr-attach-agent", (state) => applyShellCommand(state, "herdr agent attach reviewer", "herdr")],
+  ["herdr-explain", (state) => applyShellCommand(state, "herdr agent explain w1:p2", "herdr")],
+  ["herdr-agent-run", (state) => shell(state, "herdr agent start reviewer --kind codex --pane w1:p2", 'herdr agent prompt reviewer "Review the current diff" --wait')],
+  ["herdr-agent-wait", (state) => shell(state, "herdr agent wait reviewer --until blocked", "herdr agent read reviewer")],
+  ["herdr-skill", (state) => applyShellCommand(state, "npx skills add herdrdev/herdr --skill herdr -g", "herdr")],
 ]
 
 describe("curriculum", () => {

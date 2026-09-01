@@ -363,6 +363,29 @@ export const lessons: Lesson[] = [
     goal: (state) => state.activePaneId === 1,
   },
   {
+    slug: "herdr-swap",
+    track: "herdr",
+    module: "Panes",
+    title: "Swap and cycle panes",
+    body:
+      "Focus moves you. Swap moves the pane. A shifted direction key exchanges the focused pane with its neighbor and keeps everything running inside both.",
+    task: "Swap the agent with the pane to its right using [ctrl+b] [shift+l]. Then cycle to the next pane with [ctrl+b] [tab].",
+    takeaway:
+      "Use [ctrl+b] [shift+tab] to cycle backwards. Cycling follows layout order, which helps when a direction key has several candidates.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 4,
+    setup: () =>
+      initialState({
+        root: splitRow(
+          leaf(0, [`${C}claude${X}  ${Y}● working${X}`]),
+          leaf(1, [`${G}dev server${X}`, `${DIM}listening on :5173${X}`]),
+        ),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "swapped-pane") && did(state, "cycled-pane"),
+  },
+  {
     slug: "herdr-tabs",
     track: "herdr",
     module: "Tabs",
@@ -377,6 +400,22 @@ export const lessons: Lesson[] = [
     par: 4,
     setup: () => oneShell(`${DIM}# tab 1: agents${X}`),
     goal: (state) => did(state, "opened-tab") && did(state, "switched-tab") && state.activeTab === 0,
+  },
+  {
+    slug: "herdr-rename",
+    track: "herdr",
+    module: "Tabs",
+    title: "Name what you are looking at",
+    body:
+      "Tabs, workspaces, and panes can carry a name. Names appear in the tab row, the sidebar, and the session navigator, so a named layout is easier to come back to.",
+    task: "Rename the tab with [ctrl+b] [shift+t], type [review], and press [enter]. Then rename the workspace with [ctrl+b] [shift+w], type [api], and press [enter].",
+    takeaway:
+      "Rename the focused pane with [ctrl+b] [shift+p]. Herdr names a pane after its process until you set one. Escape cancels a rename.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 15,
+    setup: () => oneShell(`${DIM}# tab 1 of workspace project${X}`),
+    goal: (state) => did(state, "renamed-tab") && did(state, "renamed-workspace"),
   },
   {
     slug: "herdr-workspaces",
@@ -400,6 +439,27 @@ export const lessons: Lesson[] = [
     goal: (state) => did(state, "switched-workspace") && state.activeWorkspace === 1,
   },
   {
+    slug: "herdr-goto",
+    track: "herdr",
+    module: "Workspaces",
+    title: "Jump anywhere with the session navigator",
+    body:
+      "Workspace navigation lists projects. The session navigator lists everything: workspaces, tabs, panes, and agents, filtered as you type.",
+    task: "Open the session navigator with [ctrl+b] [g], then close it with [esc].",
+    takeaway:
+      "Use it when you know the name of what you want but not where it lives. Agents can be picked by state, so a blocked agent is one filter away.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 3,
+    setup: () =>
+      initialState({
+        root: shellPane(0, [`${DIM}# many workspaces, one search${X}`]),
+        activePaneId: 0,
+        workspaces: ["api", "webapp", "docs"],
+      }),
+    goal: (state) => did(state, "opened-goto") && state.mode.kind === "terminal",
+  },
+  {
     slug: "herdr-zoom-resize",
     track: "herdr",
     module: "Layout control",
@@ -418,6 +478,31 @@ export const lessons: Lesson[] = [
         activePaneId: 0,
       }),
     goal: (state) => did(state, "zoomed-pane") && did(state, "resized-pane"),
+  },
+  {
+    slug: "herdr-close",
+    track: "herdr",
+    module: "Layout control",
+    title: "Close what you no longer need",
+    body:
+      "Closing a pane ends the process inside it. Closing a tab closes every pane in it. Neither asks for confirmation, so check the sidebar state first.",
+    task: "Close the finished agent with [ctrl+b] [x]. Then close this tab with [ctrl+b] [shift+x].",
+    takeaway:
+      "Close a whole workspace with [ctrl+b] [shift+d]. Prefer detaching over closing when the work should keep running.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 4,
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# main shell${X}`]),
+          leaf(1, [`${C}codex${X}  ${B}● done${X}`, `${DIM}merged, nothing left to do${X}`]),
+        ),
+        activePaneId: 1,
+        tabs: 2,
+        activeTab: 1,
+      }),
+    goal: (state) => did(state, "closed-pane") && did(state, "closed-tab"),
   },
   {
     slug: "herdr-copy",
@@ -442,6 +527,32 @@ export const lessons: Lesson[] = [
         activePaneId: 0,
       }),
     goal: (state) => did(state, "copied-selection"),
+  },
+  {
+    slug: "herdr-search",
+    track: "herdr",
+    module: "History",
+    title: "Search pane history",
+    body:
+      "Copy mode has a search. It is case-insensitive unless the term contains an uppercase letter, and the pane keeps running while you look.",
+    task: "Press [ctrl+b] [[]. Press [/], type [failed], and press [enter]. Press [n] to jump to the next match.",
+    takeaway:
+      "Use [?] to search backwards and [N] to repeat in the opposite direction. Escape clears the search before it leaves copy mode.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 11,
+    setup: () =>
+      initialState({
+        root: leaf(0, [
+          `${C}codex${X}  ${B}● done${X}`,
+          `${G}auth.spec.ts passed${X}`,
+          `${R}session.spec.ts failed${X}`,
+          `${G}router.spec.ts passed${X}`,
+          `${R}cache.spec.ts failed${X}`,
+        ]),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "searched-history") && did(state, "repeated-search"),
   },
   {
     slug: "herdr-worktrees",
@@ -481,6 +592,33 @@ export const lessons: Lesson[] = [
     goal: (state) => did(state, "toggled-sidebar"),
   },
   {
+    slug: "herdr-notification",
+    track: "herdr",
+    module: "Sidebar and alerts",
+    title: "Answer the agent that pinged you",
+    body:
+      "When an agent becomes blocked or done in another pane, Herdr shows a notification. One binding takes you to its target without hunting through the layout.",
+    task: "An agent in another pane is blocked. Press [ctrl+b] [o] to jump to it.",
+    takeaway:
+      "Notifications can also reach your desktop through the notification settings in config.toml. The sidebar still shows the full picture.",
+    keymap: "herdr",
+    input: "keyboard",
+    par: 2,
+    setup: () =>
+      initialState({
+        root: splitColumn(
+          splitRow(
+            shellPane(0, [`${DIM}# you are here${X}`]),
+            leaf(1, [`${C}claude${X}  ${Y}● working${X}`]),
+          ),
+          leaf(2, [`${C}opencode${X}  ${R}● blocked${X}`, `${Y}run the migration now? (y/n)${X}`]),
+        ),
+        activePaneId: 0,
+        notificationPaneId: 2,
+      }),
+    goal: (state) => did(state, "opened-notification"),
+  },
+  {
     slug: "herdr-persistence",
     track: "herdr",
     module: "Persistence",
@@ -504,6 +642,28 @@ export const lessons: Lesson[] = [
     goal: (state) => state.detached,
   },
   {
+    slug: "herdr-stop",
+    track: "herdr",
+    module: "Persistence",
+    title: "Know what a stop destroys",
+    body:
+      "Detach keeps every process. Stopping the server ends them. After a restart Herdr restores workspaces, tabs, panes, and directories, and resumes only agents whose integration reported a session id.",
+    task: "End the session on purpose: type [herdr server stop] and press [enter].",
+    takeaway:
+      "Shells, dev servers, and tests come back as fresh shells in their saved directories. Enable pane_history under experimental in config.toml to replay recent screen contents after a restart.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# nothing here needs to survive${X}`]),
+          leaf(1, [`${C}claude${X}  ${G}● idle${X}`, `${DIM}resumes with claude --resume on the next start${X}`]),
+        ),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "stopped-server"),
+  },
+  {
     slug: "herdr-remote",
     track: "herdr",
     module: "Remote work",
@@ -517,6 +677,21 @@ export const lessons: Lesson[] = [
     input: "shell",
     setup: () => oneShell(`${DIM}# normal local shell; workbox is in ~/.ssh/config${X}`),
     goal: (state) => did(state, "remote-attached"),
+  },
+  {
+    slug: "herdr-attach-agent",
+    track: "herdr",
+    module: "Remote work",
+    title: "Attach to one agent",
+    body:
+      "Sometimes one agent should fill your terminal, without the sidebar or the layout. Direct attach connects the current terminal to a single agent pane.",
+    task: "At the practice prompt, type [herdr agent attach reviewer] and press [enter].",
+    takeaway:
+      "Detach with [ctrl+b] [q]. Send a literal ctrl+b to the agent with [ctrl+b] [ctrl+b]. Add --takeover when another client owns the input, and use herdr terminal attach for a plain terminal.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () => oneShell(`${DIM}# reviewer is a codex agent in the default session${X}`),
+    goal: (state) => did(state, "attached-agent"),
   },
   {
     slug: "herdr-integration",
@@ -534,6 +709,28 @@ export const lessons: Lesson[] = [
     goal: (state) => did(state, "installed-integration"),
   },
   {
+    slug: "herdr-explain",
+    track: "herdr",
+    module: "Integrations",
+    title: "Ask why a status is wrong",
+    body:
+      "Screen-manifest agents are classified from the bottom of their pane. When a new prompt shape appears, Herdr falls back to idle rather than guessing blocked. Explain shows which rule matched and why.",
+    task: "The agent in pane w1:p2 is waiting for you, but the sidebar says idle. Type [herdr agent explain w1:p2] and press [enter].",
+    takeaway:
+      "A fallback named default_known_agent_idle_fallback means no rule matched. Fetch newer rules with herdr server update-agent-manifests, or add a local override under ~/.config/herdr/agent-detection.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# w1:p1 · your shell${X}`]),
+          leaf(1, [`${C}codex${X}  ${G}● idle${X}`, `${Y}▸ Continue with the rewrite? (Y/n)${X}`]),
+        ),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "explained-agent"),
+  },
+  {
     slug: "herdr-automation",
     track: "herdr",
     module: "Automation",
@@ -547,6 +744,65 @@ export const lessons: Lesson[] = [
     input: "shell",
     setup: () => oneShell(`${DIM}# the CLI targets the current Herdr session${X}`),
     goal: (state) => did(state, "automated-pane"),
+  },
+  {
+    slug: "herdr-agent-run",
+    track: "herdr",
+    module: "Automation",
+    title: "Start an agent and give it work",
+    body:
+      "An agent command targets a recognized agent by name. Start one in an existing shell pane, then prompt it. With --wait the command returns when the agent settles into idle, done, or blocked.",
+    task: "Type [herdr agent start reviewer --kind codex --pane w1:p2] and press [enter]. Then type [herdr agent prompt reviewer \"Review the current diff\" --wait] and press [enter].",
+    takeaway:
+      "Pass agent arguments after a double dash, for example -- -m gpt-5.4. Names must be unique among live agents and clear when the agent exits. Use pane run for ordinary processes.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# w1:p1 · your shell${X}`]),
+          leaf(1, [`${DIM}w1:p2 · a shell waiting at its prompt${X}`]),
+        ),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "started-agent") && did(state, "prompted-agent"),
+  },
+  {
+    slug: "herdr-agent-wait",
+    track: "herdr",
+    module: "Automation",
+    title: "Wait for a decision, then read it",
+    body:
+      "A script should not poll screens. Wait for the state you care about, then read the pane to see what the agent is asking. Reading through the CLI does not mark the agent as seen.",
+    task: "Type [herdr agent wait reviewer --until blocked] and press [enter]. Then type [herdr agent read reviewer] and press [enter].",
+    takeaway:
+      "Answer with herdr agent send-keys reviewer followed by a key such as y, enter, or esc. Prompting a blocked agent is refused, so waits and reads come first.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () =>
+      initialState({
+        root: splitRow(
+          shellPane(0, [`${DIM}# w1:p1 · your shell${X}`]),
+          leaf(1, [`${C}codex${X}  ${Y}● working${X}`, `${DIM}reviewer · editing src/auth.ts${X}`]),
+        ),
+        activePaneId: 0,
+      }),
+    goal: (state) => did(state, "waited-agent") && did(state, "read-agent"),
+  },
+  {
+    slug: "herdr-skill",
+    track: "herdr",
+    module: "Automation",
+    title: "Let your agent drive Herdr",
+    body:
+      "Herdr ships a skill file that teaches a coding agent the same CLI you just used. Inside a Herdr pane the agent sees HERDR_ENV=1 and can split panes, start helpers, and wait for them.",
+    task: "Type [npx skills add herdrdev/herdr --skill herdr -g] and press [enter].",
+    takeaway:
+      "The skill refuses to act when HERDR_ENV is not set, so an agent outside Herdr cannot control a session it does not own. Run herdr --skill to print the copy bundled with your binary.",
+    keymap: "herdr",
+    input: "shell",
+    setup: () => oneShell(`${DIM}# installs for every agent with a skill directory${X}`),
+    goal: (state) => did(state, "installed-skill"),
   },
   {
     slug: "herdr-plugins",

@@ -75,10 +75,75 @@ function evaluate(input: string): ShellEffect {
       if (input === "herdr plugin list") {
         return { kind: "print", lines: [`${DIM}no plugins installed${X}`] }
       }
+      if (input === "herdr server stop") {
+        return { kind: "print", lines: [`${DIM}stopped${X}  default session · 3 panes ended`] }
+      }
+      if (/^herdr agent start reviewer --kind codex --pane w1:p\d+/.test(input)) {
+        return {
+          kind: "print",
+          lines: [
+            `{"result":{"agent":{"name":"reviewer","kind":"codex","pane_id":"${input.match(/w1:p\d+/)?.[0]}","state":"idle"}}}`,
+          ],
+        }
+      }
+      if (/^herdr agent prompt reviewer ".+" --wait/.test(input)) {
+        return {
+          kind: "print",
+          lines: [`{"result":{"agent":"reviewer","state":"done","waited_ms":41830}}`],
+        }
+      }
+      if (/^herdr agent wait reviewer --until blocked/.test(input)) {
+        return {
+          kind: "print",
+          lines: [`{"result":{"agent":"reviewer","state":"blocked","waited_ms":12045}}`],
+        }
+      }
+      if (/^herdr agent read reviewer/.test(input)) {
+        return {
+          kind: "print",
+          lines: [
+            `${DIM}── reviewer · recent-unwrapped ──${X}`,
+            "I want to edit src/auth.ts to remove the duplicated token check.",
+            "allow edits to src/auth.ts? (y/n)",
+          ],
+        }
+      }
+      if (input === "herdr agent attach reviewer") {
+        return {
+          kind: "print",
+          lines: [
+            `${G}attached${X}  reviewer (codex, w1:p2) · ctrl+b q detaches · ctrl+b ctrl+b sends ctrl+b`,
+          ],
+        }
+      }
+      if (/^herdr agent explain w1:p\d+$/.test(input)) {
+        return {
+          kind: "print",
+          lines: [
+            `agent:            codex`,
+            `state:            idle`,
+            `authority:        screen manifest (bundled v14, remote v14)`,
+            `matched rule:     none`,
+            `fallback:         default_known_agent_idle_fallback`,
+            `${DIM}no manifest rule matched the bottom of the screen; Herdr defaulted to idle${X}`,
+          ],
+        }
+      }
       return {
         kind: "print",
         lines: [`${DIM}the trainer is already showing a Herdr-style client${X}`],
       }
+    case "npx":
+      if (input === "npx skills add herdrdev/herdr --skill herdr -g") {
+        return {
+          kind: "print",
+          lines: [
+            `${G}✔${X} herdr  ${DIM}→ ~/.claude/skills/herdr/SKILL.md, ~/.codex/skills/herdr/SKILL.md${X}`,
+            `${DIM}agents started inside Herdr (HERDR_ENV=1) can now drive it through the CLI${X}`,
+          ],
+        }
+      }
+      return { kind: "print", lines: [`${DIM}npx: only the skill install is simulated here${X}`] }
     case "exit":
       return { kind: "print", lines: [`${DIM}this practice shell stays open${X}`] }
     default:

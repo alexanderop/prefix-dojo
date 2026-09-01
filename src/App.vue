@@ -111,7 +111,7 @@ const KEY_LABELS: Record<string, string> = {
 function displayKey(e: KeyboardEvent): string {
   const base = KEY_LABELS[e.key] ?? e.key
   if (e.ctrlKey) return `ctrl+${base.toLowerCase()}`
-  if (e.shiftKey && /^[a-z]$/i.test(base)) return `shift+${base.toLowerCase()}`
+  if (e.shiftKey && (/^[a-z]$/i.test(base) || base === "tab")) return `shift+${base.toLowerCase()}`
   return base.length === 1 ? base : base.toLowerCase()
 }
 
@@ -275,9 +275,15 @@ function onKeydown(e: KeyboardEvent): void {
 
 const REJECTED = [
   /has no binding/,
-  /^no pane to the/,
+  /^no pane (to the|above|below)/,
+  /^no neighbor/,
   /^no (window|tab) /,
+  /^no visible notification/,
+  /^no search to repeat/,
+  /^no match for/,
   /^cannot close/,
+  /^name cannot be empty/,
+  /^type (a name|the search term)/,
   /expects h, j, k, l/,
   /^use up or down/,
 ]
@@ -310,7 +316,7 @@ const windowList = computed(() =>
       index,
       current,
       label: `${index}:sh${current ? "*" : ""}${zoom}`,
-      name: index === 0 ? "main" : `tab ${index + 1}`,
+      name: state.value.tabNames[index] ?? (index === 0 ? "main" : `tab ${index + 1}`),
     }
   }),
 )
@@ -589,7 +595,13 @@ const isDrillUrgent = computed(() =>
                   zoomed · other panes still run underneath
                 </div>
 
-                <div v-if="state.detached" class="detached-note" role="status">
+                <div v-if="state.serverStopped" class="detached-note stopped-note" role="status">
+                  <strong>server stopped</strong>
+                  <span>session {{ sessionName }} ended; its panes and agents are gone. The next start restores the layout, not the processes</span>
+                  <kbd>herdr</kbd>
+                </div>
+
+                <div v-else-if="state.detached" class="detached-note" role="status">
                   <strong>client detached</strong>
                   <span>the server still owns session {{ sessionName }} and every pane in it</span>
                   <kbd>{{ lesson.keymap === "tmux" ? "tmux attach -t work" : "herdr" }}</kbd>
@@ -611,10 +623,22 @@ const isDrillUrgent = computed(() =>
                   <small>enter or esc exits</small>
                 </div>
 
+                <div v-else-if="state.mode.kind === 'copy' && state.mode.search?.typing && !done" class="mode-overlay compact-overlay">
+                  <p class="overlay-title">search {{ state.mode.search.direction }}</p>
+                  <p class="overlay-input">{{ state.mode.search.direction === "forward" ? "/" : "?" }}{{ state.mode.search.query }}<span class="overlay-caret">▮</span></p>
+                  <small>enter search · esc cancel</small>
+                </div>
+
                 <div v-else-if="state.mode.kind === 'copy' && !done" class="mode-overlay compact-overlay">
                   <p class="overlay-title">copy mode</p>
-                  <p>{{ state.mode.selecting ? "selection started" : "move through pane history" }}</p>
-                  <small>{{ lesson.keymap === "tmux" ? "space select · enter copy · q exit" : "v select · y copy · q exit" }}</small>
+                  <p>{{ state.mode.selecting ? "selection started" : state.mode.search ? `${state.mode.search.matches} match${state.mode.search.matches === 1 ? "" : "es"} for "${state.mode.search.query}"` : "move through pane history" }}</p>
+                  <small>{{ lesson.keymap === "tmux" ? "space select · enter copy · q exit" : state.mode.search ? "n next · N previous · v select · q exit" : "/ search · v select · y copy · q exit" }}</small>
+                </div>
+
+                <div v-else-if="state.mode.kind === 'rename' && !done" class="mode-overlay compact-overlay">
+                  <p class="overlay-title">rename {{ state.mode.target }}</p>
+                  <p class="overlay-input">{{ state.mode.value }}<span class="overlay-caret">▮</span></p>
+                  <small>enter save · esc cancel</small>
                 </div>
 
                 <div v-else-if="state.mode.kind === 'goto' && !done" class="mode-overlay picker-overlay">
