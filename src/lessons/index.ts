@@ -124,7 +124,7 @@ export const lessons: Lesson[] = [
     title: "Move between panes",
     body:
       "Focus decides which terminal receives your typing and which pane a tmux command changes. The default arrow bindings move focus by direction.",
-    task: "Reach the pane marked with a star. Use [ctrl+b] then an arrow for each move.",
+    task: "Reach the pane marked with a star. Use [ctrl+b] then an arrow ([←] [↑] [↓] [→]) for each move.",
     takeaway:
       "You can also press [ctrl+b] then [o] to cycle through panes. The active pane is the one with the highlighted border.",
     keymap: "tmux",
@@ -172,7 +172,7 @@ export const lessons: Lesson[] = [
       "A window fills the client and owns its own pane layout. Use windows for separate activities such as editing, tests, and logs.",
     task: "Create a window with [ctrl+b] [c], then return with [ctrl+b] [p].",
     takeaway:
-      "Use [ctrl+b] [n] for the next window or [ctrl+b] plus its number for a direct jump. Herdr calls this level a tab.",
+      "Use [ctrl+b] [n] for the next window or [ctrl+b] plus its number for a direct jump. tmux counts windows from 0. Herdr calls this level a tab and counts from 1.",
     keymap: "tmux",
     input: "keyboard",
     par: 4,
@@ -346,7 +346,7 @@ export const lessons: Lesson[] = [
     title: "Move with h, j, k, and l",
     body:
       "Herdr uses Vim directions for pane focus. The keys are h for left, j for down, k for up, and l for right.",
-    task: "Move from the top-left pane to the starred pane with one prefixed move at a time.",
+    task: "Move from the top-left pane to the starred pane. Use [ctrl+b] then [h], [j], [k], or [l] for each move.",
     takeaway:
       "Use [ctrl+b] [tab] to cycle panes. Use shifted h, j, k, or l to swap the focused pane with its neighbor.",
     keymap: "herdr",

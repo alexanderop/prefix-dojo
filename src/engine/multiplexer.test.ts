@@ -193,3 +193,28 @@ describe("layout rectangles", () => {
     expect(rects.get(2)).toEqual({ x: 0.5, y: 0.5, w: 0.5, h: 0.5 })
   })
 })
+
+describe("numbered window and tab jumps", () => {
+  const twoTabs = () =>
+    initialState({ root: leaf(0), activePaneId: 0, tabs: 2, activeTab: 1 })
+  const prefix = { key: "b", ctrl: true, alt: false, shift: false }
+  const digit = (key: string) => ({ key, ctrl: false, alt: false, shift: false })
+
+  it("tmux counts windows from 0", () => {
+    const next = applyKey(applyKey(twoTabs(), prefix, "tmux"), digit("0"), "tmux")
+    expect(next.activeTab).toBe(0)
+    expect(next.lastAction).toBe("selected window 0")
+  })
+
+  it("Herdr counts tabs from 1", () => {
+    const next = applyKey(applyKey(twoTabs(), prefix, "herdr"), digit("1"), "herdr")
+    expect(next.activeTab).toBe(0)
+    expect(next.lastAction).toBe("selected tab 1")
+  })
+
+  it("reports a missing window instead of falling through", () => {
+    const next = applyKey(applyKey(twoTabs(), prefix, "tmux"), digit("7"), "tmux")
+    expect(next.activeTab).toBe(1)
+    expect(next.lastAction).toBe("no window 7")
+  })
+})

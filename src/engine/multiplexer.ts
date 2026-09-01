@@ -274,11 +274,16 @@ function cycleTab(state: TrainerState, step: 1 | -1): void {
   record(state, "switched-tab")
 }
 
-function switchTab(state: TrainerState, key: string): boolean {
-  const index = Number(key) - 1
-  if (!Number.isInteger(index) || index < 0 || index >= state.tabs) return false
+/** tmux numbers windows from 0 by default; Herdr numbers tabs from 1. */
+function switchTab(state: TrainerState, key: string, firstNumber: 0 | 1): boolean {
+  if (!/^[0-9]$/.test(key)) return false
+  const index = Number(key) - firstNumber
+  if (index < 0 || index >= state.tabs) {
+    state.lastAction = firstNumber === 0 ? `no window ${key}` : `no tab ${key}`
+    return true
+  }
   state.activeTab = index
-  state.lastAction = `selected tab ${index + 1}`
+  state.lastAction = firstNumber === 0 ? `selected window ${key}` : `selected tab ${key}`
   record(state, "switched-tab")
   return true
 }
@@ -303,7 +308,7 @@ function openHelp(state: TrainerState): void {
 }
 
 function runTmuxCommand(state: TrainerState, input: KeyInput): void {
-  if (switchTab(state, input.key)) return
+  if (switchTab(state, input.key, 0)) return
 
   switch (input.key) {
     case "?":
@@ -348,7 +353,7 @@ function runTmuxCommand(state: TrainerState, input: KeyInput): void {
 }
 
 function runHerdrCommand(state: TrainerState, input: KeyInput): void {
-  if (switchTab(state, input.key)) return
+  if (switchTab(state, input.key, 1)) return
 
   if (input.shift && input.key.toLowerCase() === "n") {
     state.workspaces.push(`workspace-${state.workspaces.length + 1}`)
