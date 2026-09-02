@@ -1,12 +1,8 @@
+import { DIM, RESET, YELLOW } from "../engine/ansi"
 import { initialState, leaf, type PaneNode, type TrainerState } from "../engine/multiplexer"
+import type { DrillDefinition } from "./definition"
 
-export type NavigationRoundId =
-  | "right"
-  | "left"
-  | "down"
-  | "up"
-  | "down-right"
-  | "up-left"
+export type NavigationRoundId = "right" | "left" | "down" | "up" | "down-right" | "up-left"
 
 export interface NavigationRound {
   id: NavigationRoundId
@@ -19,18 +15,11 @@ interface NavigationVariant {
   build: () => Omit<NavigationRound, "id">
 }
 
-const DIM = "\x1b[90m"
-const YELLOW = "\x1b[33;1m"
-const RESET = "\x1b[0m"
 const START_LINE = `${DIM}# start here${RESET}`
 const TARGET_LINE = `${YELLOW}★ focus this pane${RESET}`
 
 function pane(id: number, marker?: "start" | "target"): PaneNode {
-  const lines = marker === "start"
-    ? [START_LINE]
-    : marker === "target"
-      ? [TARGET_LINE]
-      : []
+  const lines = marker === "start" ? [START_LINE] : marker === "target" ? [TARGET_LINE] : []
   return leaf(id, lines, "shell")
 }
 
@@ -42,7 +31,11 @@ function column(first: PaneNode, second: PaneNode): PaneNode {
   return { kind: "split", dir: "column", children: [first, second] }
 }
 
-function round(root: PaneNode, activePaneId: number, targetPaneId: number): Omit<NavigationRound, "id"> {
+function round(
+  root: PaneNode,
+  activePaneId: number,
+  targetPaneId: number,
+): Omit<NavigationRound, "id"> {
   return {
     initialState: initialState({ root, activePaneId }),
     targetPaneId,
@@ -68,25 +61,13 @@ const navigationVariants = [
   },
   {
     id: "down-right",
-    build: () => round(
-      row(
-        column(pane(0, "start"), pane(1)),
-        column(pane(2), pane(3, "target")),
-      ),
-      0,
-      3,
-    ),
+    build: () =>
+      round(row(column(pane(0, "start"), pane(1)), column(pane(2), pane(3, "target"))), 0, 3),
   },
   {
     id: "up-left",
-    build: () => round(
-      row(
-        column(pane(0, "target"), pane(1)),
-        column(pane(2), pane(3, "start")),
-      ),
-      3,
-      0,
-    ),
+    build: () =>
+      round(row(column(pane(0, "target"), pane(1)), column(pane(2), pane(3, "start"))), 3, 0),
   },
 ] satisfies readonly [NavigationVariant, ...NavigationVariant[]]
 
@@ -99,12 +80,19 @@ export function createNavigationRound({
 }): NavigationRound {
   const randomIndex = Math.floor(random() * navigationVariants.length)
   const boundedIndex = Math.max(0, Math.min(navigationVariants.length - 1, randomIndex))
-  const previousIndex = previous === null
-    ? -1
-    : navigationVariants.findIndex((variant) => variant.id === previous.id)
-  const index = boundedIndex === previousIndex
-    ? (boundedIndex + 1) % navigationVariants.length
-    : boundedIndex
+  const previousIndex =
+    previous === null ? -1 : navigationVariants.findIndex((variant) => variant.id === previous.id)
+  const index =
+    boundedIndex === previousIndex ? (boundedIndex + 1) % navigationVariants.length : boundedIndex
   const variant = navigationVariants.at(index) ?? navigationVariants[0]
   return { id: variant.id, ...variant.build() }
+}
+
+export const navigationDrill: DrillDefinition<NavigationRound> = {
+  id: "tmux-navigate",
+  title: "60 second drill",
+  blurb: "Reach as many randomized starred panes as you can.",
+  createRound: (random, previous) => createNavigationRound({ random, previous }),
+  roundState: (round) => round.initialState,
+  solved: (state, round) => state.activePaneId === round.targetPaneId,
 }

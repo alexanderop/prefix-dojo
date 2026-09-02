@@ -105,14 +105,7 @@ describe("tmux windows, copy mode, and sessions", () => {
   })
 
   it("browses and exits copy mode", () => {
-    const state = press(
-      start(),
-      "tmux",
-      prefix,
-      key("["),
-      key("PageUp"),
-      key("q"),
-    )
+    const state = press(start(), "tmux", prefix, key("["), key("PageUp"), key("q"))
     expect(state.mode.kind).toBe("terminal")
     expect(did(state, "entered-copy-mode")).toBe(true)
   })
@@ -208,8 +201,7 @@ describe("layout rectangles", () => {
 })
 
 describe("numbered window and tab jumps", () => {
-  const twoTabs = () =>
-    initialState({ root: leaf(0), activePaneId: 0, tabs: 2, activeTab: 1 })
+  const twoTabs = () => initialState({ root: leaf(0), activePaneId: 0, tabs: 2, activeTab: 1 })
   const prefix = { key: "b", ctrl: true, alt: false, shift: false }
   const digit = (key: string) => ({ key, ctrl: false, alt: false, shift: false })
 
@@ -302,14 +294,28 @@ describe("Herdr rename mode", () => {
   const type = (text: string) => [...text].map((char) => key(char))
 
   it("renames the active tab from typed text", () => {
-    const state = press(start(), "herdr", prefix, key("T", { shift: true }), ...type("review"), key("Enter"))
+    const state = press(
+      start(),
+      "herdr",
+      prefix,
+      key("T", { shift: true }),
+      ...type("review"),
+      key("Enter"),
+    )
     expect(state.tabNames[0]).toBe("review")
     expect(state.mode.kind).toBe("terminal")
     expect(did(state, "renamed-tab")).toBe(true)
   })
 
   it("renames the workspace and the pane through their own bindings", () => {
-    let state = press(start(), "herdr", prefix, key("W", { shift: true }), ...type("api"), key("Enter"))
+    let state = press(
+      start(),
+      "herdr",
+      prefix,
+      key("W", { shift: true }),
+      ...type("api"),
+      key("Enter"),
+    )
     expect(state.workspaces[0]).toBe("api")
     expect(did(state, "renamed-workspace")).toBe(true)
 
@@ -319,13 +325,27 @@ describe("Herdr rename mode", () => {
   })
 
   it("ignores modifier chords while a name is being typed", () => {
-    const state = press(start(), "herdr", prefix, key("T", { shift: true }), prefix, key("b", { ctrl: true }))
+    const state = press(
+      start(),
+      "herdr",
+      prefix,
+      key("T", { shift: true }),
+      prefix,
+      key("b", { ctrl: true }),
+    )
     expect(state.mode).toEqual({ kind: "rename", target: "tab", value: "" })
     expect(state.lastAction).toBe("type a name, then enter")
   })
 
   it("supports backspace, rejects an empty name, and cancels with escape", () => {
-    let state = press(start(), "herdr", prefix, key("T", { shift: true }), key("a"), key("Backspace"))
+    let state = press(
+      start(),
+      "herdr",
+      prefix,
+      key("T", { shift: true }),
+      key("a"),
+      key("Backspace"),
+    )
     expect(state.mode).toEqual({ kind: "rename", target: "tab", value: "" })
 
     state = press(state, "herdr", key("Enter"))
@@ -388,7 +408,15 @@ describe("Herdr copy-mode search", () => {
   })
 
   it("is case-sensitive once the query has an uppercase letter", () => {
-    const state = press(history(), "herdr", prefix, key("["), key("/"), ...type("FAILED"), key("Enter"))
+    const state = press(
+      history(),
+      "herdr",
+      prefix,
+      key("["),
+      key("/"),
+      ...type("FAILED"),
+      key("Enter"),
+    )
     expect(state.mode).toMatchObject({ search: { matches: 1 } })
   })
 
@@ -402,7 +430,15 @@ describe("Herdr copy-mode search", () => {
   })
 
   it("clears the search with escape before leaving copy mode", () => {
-    let state = press(history(), "herdr", prefix, key("["), key("/"), ...type("failed"), key("Enter"))
+    let state = press(
+      history(),
+      "herdr",
+      prefix,
+      key("["),
+      key("/"),
+      ...type("failed"),
+      key("Enter"),
+    )
     state = press(state, "herdr", key("Escape"))
     expect(state.mode).toEqual({ kind: "copy", selecting: false, search: null })
     state = press(state, "herdr", key("Escape"))
@@ -420,7 +456,11 @@ describe("Herdr copy-mode search", () => {
 describe("Herdr agent CLI", () => {
   const twoPanes = () =>
     initialState({
-      root: { kind: "split", dir: "row", children: [leaf(0, [], "shell"), leaf(1, ["idle shell"])] },
+      root: {
+        kind: "split",
+        dir: "row",
+        children: [leaf(0, [], "shell"), leaf(1, ["idle shell"])],
+      },
       activePaneId: 0,
     })
 
@@ -429,7 +469,10 @@ describe("Herdr agent CLI", () => {
     ["herdr agent start reviewer --kind codex --pane w1:p2", "started-agent"],
     ["herdr agent start reviewer --kind codex --pane w1:p2 -- -m gpt-5.4", "started-agent"],
     ['herdr agent prompt reviewer "Review the current diff" --wait', "prompted-agent"],
-    ['herdr agent prompt reviewer "Review the current diff" --wait --timeout 120000', "prompted-agent"],
+    [
+      'herdr agent prompt reviewer "Review the current diff" --wait --timeout 120000',
+      "prompted-agent",
+    ],
     ["herdr agent wait reviewer --until blocked", "waited-agent"],
     ["herdr agent read reviewer", "read-agent"],
     ["herdr agent read reviewer --source recent-unwrapped --lines 80", "read-agent"],
@@ -452,11 +495,19 @@ describe("Herdr agent CLI", () => {
   })
 
   it("puts the started agent into the targeted pane and moves it through states", () => {
-    let state = applyShellCommand(twoPanes(), "herdr agent start reviewer --kind codex --pane w1:p2", "herdr")
+    let state = applyShellCommand(
+      twoPanes(),
+      "herdr agent start reviewer --kind codex --pane w1:p2",
+      "herdr",
+    )
     expect(leaves(state.root)[1].lines[0]).toContain("● idle")
     expect(agentSummaries(state)).toContainEqual({ paneId: 1, name: "reviewer", state: "idle" })
 
-    state = applyShellCommand(state, 'herdr agent prompt reviewer "Review the current diff" --wait', "herdr")
+    state = applyShellCommand(
+      state,
+      'herdr agent prompt reviewer "Review the current diff" --wait',
+      "herdr",
+    )
     expect(leaves(state.root)[1].lines[0]).toContain("● done")
 
     state = applyShellCommand(state, "herdr agent wait reviewer --until blocked", "herdr")
@@ -512,8 +563,16 @@ describe("Herdr agent CLI", () => {
     expect(state.workspaces).toEqual(["webapp", "session-timeout"])
     expect(state.activeWorkspace).toBe(1)
 
-    state = applyShellCommand(state, "herdr pane split --current --direction right --no-focus", "herdr")
-    state = applyShellCommand(state, "herdr agent start implementer --kind codex --pane w2:p2", "herdr")
+    state = applyShellCommand(
+      state,
+      "herdr pane split --current --direction right --no-focus",
+      "herdr",
+    )
+    state = applyShellCommand(
+      state,
+      "herdr agent start implementer --kind codex --pane w2:p2",
+      "herdr",
+    )
     expect(state.agentPanes).toEqual({ implementer: 1 })
     expect(leaves(state.root)[0]).toMatchObject({ variant: "shell" })
     expect(leaves(state.root)[1]).toMatchObject({ variant: "static" })
@@ -523,19 +582,29 @@ describe("Herdr agent CLI", () => {
       'herdr agent prompt implementer "Fix the flaky test." --wait --timeout 120000',
       "herdr",
     )
-    expect(leaves(state.root)[1].lines).toEqual(expect.arrayContaining([
-      expect.stringContaining("implementer · finished: Fix the flaky test."),
-    ]))
+    expect(leaves(state.root)[1].lines).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining("implementer · finished: Fix the flaky test."),
+      ]),
+    )
   })
 
   it("reads a blocked agent before sending a deliberate key", () => {
     let state = initialState({
-      root: { kind: "split", dir: "row", children: [leaf(0, [], "shell"), leaf(1, ["codex  ● blocked"])] },
+      root: {
+        kind: "split",
+        dir: "row",
+        children: [leaf(0, [], "shell"), leaf(1, ["codex  ● blocked"])],
+      },
       activePaneId: 0,
       agentPanes: { reviewer: 1 },
     })
 
-    state = applyShellCommand(state, "herdr agent wait reviewer --until blocked --timeout 120000", "herdr")
+    state = applyShellCommand(
+      state,
+      "herdr agent wait reviewer --until blocked --timeout 120000",
+      "herdr",
+    )
     state = applyShellCommand(state, "herdr agent read reviewer --source visible", "herdr")
     state = applyShellCommand(state, "herdr agent send-keys reviewer esc", "herdr")
 
@@ -549,5 +618,36 @@ describe("Herdr agent CLI", () => {
     const state = applyShellCommand(twoPanes(), "herdr server stop", "herdr")
     expect(state.serverStopped).toBe(true)
     expect(state.detached).toBe(true)
+  })
+})
+
+describe("rejected flag", () => {
+  const start = initialState({ root: leaf(0), activePaneId: 0 })
+  const prefix: KeyInput = { key: "b", ctrl: true, alt: false, shift: false }
+  const press = (state: TrainerState, key: string, keymap: "tmux" | "herdr" = "tmux") =>
+    applyKey(state, { key, ctrl: false, alt: false, shift: false }, keymap)
+
+  it("is set when the prefix key has no binding", () => {
+    const state = press(applyKey(start, prefix, "tmux"), "€")
+    expect(state.rejected).toBe(true)
+    expect(state.lastAction).toContain("no binding")
+  })
+
+  it("is set when a bound command has nothing to act on", () => {
+    const state = press(applyKey(start, prefix, "tmux"), "x")
+    expect(state.rejected).toBe(true)
+    expect(state.lastAction).toBe("cannot close the last pane")
+  })
+
+  it("clears on the next accepted key", () => {
+    const rejected = press(applyKey(start, prefix, "tmux"), "x")
+    const next = press(applyKey(rejected, prefix, "tmux"), "%")
+    expect(next.rejected).toBe(false)
+  })
+
+  it("is set by a shell command error and cleared by a good one", () => {
+    const bad = applyShellCommand(start, "herdr agent attach ghost", "herdr")
+    expect(bad.rejected).toBe(true)
+    expect(applyShellCommand(bad, "herdr", "herdr").rejected).toBe(false)
   })
 })

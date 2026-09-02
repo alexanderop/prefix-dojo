@@ -1,17 +1,15 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from "vue"
-import { bindings, PREFIX } from "../engine/bindings"
-import type { Keymap } from "../engine/multiplexer"
+import type { Tool } from "../engine/multiplexer"
 
 const props = defineProps<{
-  keymap: Keymap
+  tool: Tool
   lessonKeys: string[]
   close: () => void
 }>()
 
-const groups = computed(() => bindings[props.keymap])
+const groups = computed(() => props.tool.bindings)
 const wanted = computed(() => new Set(props.lessonKeys))
-const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
 const closeButton = ref<HTMLButtonElement | null>(null)
 let previousFocus: HTMLElement | null = null
 
@@ -25,13 +23,19 @@ onBeforeUnmount(() => previousFocus?.focus())
 </script>
 
 <template>
-  <div class="help" role="dialog" aria-modal="true" aria-labelledby="help-title" @click.self="close">
+  <div
+    class="help"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="help-title"
+    @click.self="close"
+  >
     <div class="help-card">
       <header class="help-head">
-        <p id="help-title" class="help-title">{{ tool }} key bindings</p>
+        <p id="help-title" class="help-title">{{ tool.label }} key bindings</p>
         <p class="help-sub">
-          Every command starts with <kbd>{{ PREFIX }}</kbd>, released, then one key.
-          Highlighted keys are the ones this lesson asks for.
+          Every command starts with <kbd>{{ tool.prefix }}</kbd
+          >, released, then one key. Highlighted keys are the ones this lesson asks for.
         </p>
       </header>
 
@@ -53,12 +57,7 @@ onBeforeUnmount(() => previousFocus?.focus())
       </div>
 
       <footer class="help-foot">
-        <span v-if="keymap === 'tmux'">
-          In real tmux this list is <kbd>{{ PREFIX }}</kbd> <kbd>?</kbd>. Scroll it with arrows.
-        </span>
-        <span v-else>
-          Real Herdr shows only the bindings from your config here. Press <kbd>/</kbd> to filter.
-        </span>
+        <span>{{ tool.helpNote }}</span>
         <button ref="closeButton" class="help-close" type="button" @click="close">
           close <kbd>esc</kbd>
         </button>

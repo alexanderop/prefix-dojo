@@ -1,11 +1,10 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { leaves, type Keymap, type TrainerState } from "../engine/multiplexer"
+import { leaves, type Tool, type TrainerState } from "../engine/multiplexer"
 
 const props = defineProps<{
   state: TrainerState
-  keymap: Keymap
-  sessionName: string
+  tool: Tool
 }>()
 
 interface Level {
@@ -23,12 +22,12 @@ const levels = computed<Level[]>(() => {
 
   const session: Level = {
     term: "session",
-    value: props.sessionName,
+    value: props.tool.sessionName,
     flags: state.detached ? ["detached"] : [],
   }
 
   const windowLevel: Level = {
-    term: props.keymap === "tmux" ? "window" : "tab",
+    term: props.tool.tab.word,
     value: state.tabNames[state.activeTab] ?? `${state.activeTab + 1} of ${state.tabs}`,
     flags: [],
   }
@@ -39,7 +38,7 @@ const levels = computed<Level[]>(() => {
     flags: paneFlags,
   }
 
-  if (props.keymap === "tmux") return [session, windowLevel, pane]
+  if (!props.tool.hasWorkspaces) return [session, windowLevel, pane]
 
   const workspace: Level = {
     term: "workspace",

@@ -19,21 +19,50 @@ Open the local URL that Vite prints. Most lessons use `ctrl+b` followed by one a
 
 - **Key HUD** above the terminal: the current mode (terminal, prefix armed, copy, resize, …), the keys you pressed so far, one sentence about who receives the next key, and the keys that do something right now. Keys the lesson asks for are highlighted. Rejected keys shake the HUD.
 - **Structure map**: session › window › pane for tmux, session › workspace › tab › pane for Herdr, with the other tool's name for each level so the vocabulary transfers.
-- **Key help**: `ctrl+b` `?` in a lesson, or the `? all keys` button, lists every binding the trainer implements for the current tool. `src/engine/bindings.ts` is the reference table and is tested against the engine.
+- **Key help**: `ctrl+b` `?` in a lesson, or the `? all keys` button, lists every binding the trainer implements for the current tool. `src/tools/<tool>.ts` is the binding table; the engine runs the same rows the overlay shows.
 - **Status line**: mimics tmux (`[work] 0:sh*`) and turns mauve while the prefix is armed.
 - **Lesson cleared** slides up from the bottom so the layout you just built stays visible.
 
 ## Check it
 
 ```sh
-pnpm test
-pnpm build
+pnpm check
 ```
 
-The state machine is pure and covered by Vitest. The production build runs Vue's type checker before Vite.
+That runs ESLint, the Prettier check, Vue's type checker, and Vitest. Each is also available on its own: `pnpm lint`, `pnpm format`, `pnpm test`, `pnpm build`.
+
+## How the code is laid out
+
+```
+src/
+  engine/       pure state machine: state.ts (types), actions.ts (what a
+                binding can do), modes.ts (copy, resize, rename, picker),
+                bindings.ts (the Tool contract), multiplexer.ts (applyKey,
+                executeShellCommand)
+  tools/        one descriptor per tool (tmux.ts, herdr.ts): prefix, session
+                name, binding table with the action each key runs, copy-mode
+                keys, shell commands
+  lessons/      the course; tmux.ts and herdr/*.ts hold the lesson data,
+                types.ts the Lesson shape, index.ts the ordered list and
+                track grouping
+  drills/       timed drills: session.ts (clock and score), definition.ts
+                (what a drill needs to provide), navigationDrill.ts
+  composables/  useCourse (which lesson), useTrainer (one attempt: state,
+                trail, clock, drill), useKeyRouter (who gets a key press),
+                useProgress (cleared lessons)
+  components/   one file per screen region
+```
+
+### Adding things
+
+- **A binding.** Add one row to the tool's table in `src/tools/<tool>.ts` with the action it runs. The engine, key help, and HUD all read that row; `bindings.test.ts` checks that every listed key does something. New behaviour goes into `src/engine/actions.ts`.
+- **A shell command.** Add a rule to `shellCommands` in the tool file. Use `commandError` from `src/engine/shell.ts` for failures so the HUD shakes.
+- **A lesson.** Add an object to `src/lessons/tmux.ts` or one of `src/lessons/herdr/*.ts`, then a solution to `src/lessons/index.test.ts`. Lessons are data plus `setup` and `goal`.
+- **A drill.** Implement `DrillDefinition` (see `src/drills/navigationDrill.ts`) and set `drill:` on the lesson that offers it.
+- **A tool.** Add `src/tools/<name>.ts` exporting a `Tool`, register it in `src/tools/index.ts`, and extend the `ToolId` union in `src/engine/bindings.ts`.
 
 ## Source of truth
 
 The Herdr lessons follow the current [Herdr documentation](https://herdr.dev/docs/) and the default bindings in [`herdrdev/herdr`](https://github.com/herdrdev/herdr). The tmux lessons use the default bindings documented by `man tmux` and verified against tmux 3.6a.
 
-When Herdr changes a default binding or concept, update `src/engine/multiplexer.ts`, the reference table in `src/engine/bindings.ts`, the affected lesson in `src/lessons/index.ts`, and its test in the same change.
+When Herdr changes a default binding or concept, update the row in `src/tools/herdr.ts`, the affected lesson under `src/lessons/herdr/`, and its solution in `src/lessons/index.test.ts` in the same change.

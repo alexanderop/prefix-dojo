@@ -43,10 +43,14 @@ describe("practice shell", () => {
   it("runs a lesson command and reports it to the trainer", () => {
     const terminal = new TerminalStub()
     const commands: string[] = []
-    startShell(terminal, () => true, (command) => {
-      commands.push(command)
-      return command === "herdr plugin list" ? ["no plugins installed"] : null
-    })
+    startShell(
+      terminal,
+      () => true,
+      (command) => {
+        commands.push(command)
+        return command === "herdr plugin list" ? ["no plugins installed"] : null
+      },
+    )
 
     terminal.enter("herdr plugin list")
 
@@ -56,10 +60,11 @@ describe("practice shell", () => {
 
   it("prints the command result supplied by the trainer", () => {
     const terminal = new TerminalStub()
-    startShell(terminal, () => true, (command) =>
-      command.endsWith("--no-focus")
-        ? ["created pane w1:p2 without moving focus"]
-        : null,
+    startShell(
+      terminal,
+      () => true,
+      (command) =>
+        command.endsWith("--no-focus") ? ["created pane w1:p2 without moving focus"] : null,
     )
 
     terminal.enter("herdr pane split --current --direction right --no-focus")
@@ -71,10 +76,14 @@ describe("practice shell", () => {
   it("supports editing and clearing the input", () => {
     const terminal = new TerminalStub()
     const commands: string[] = []
-    startShell(terminal, () => true, (command) => {
-      commands.push(command)
-      return null
-    })
+    startShell(
+      terminal,
+      () => true,
+      (command) => {
+        commands.push(command)
+        return null
+      },
+    )
 
     terminal.send("tmux new -s wrok")
     terminal.send("\u007f")
@@ -91,10 +100,14 @@ describe("practice shell", () => {
   it("removes the input listener on dispose", () => {
     const terminal = new TerminalStub()
     const commands: string[] = []
-    const input = startShell(terminal, () => true, (command) => {
-      commands.push(command)
-      return null
-    })
+    const input = startShell(
+      terminal,
+      () => true,
+      (command) => {
+        commands.push(command)
+        return null
+      },
+    )
 
     input.dispose()
     terminal.enter("herdr")

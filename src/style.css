@@ -46,7 +46,11 @@ body,
 }
 
 body {
-  background: var(--bg);
+  background-color: var(--bg);
+  background-image:
+    linear-gradient(var(--line) 1px, transparent 1px),
+    linear-gradient(90deg, var(--line) 1px, transparent 1px);
+  background-size: 72px 72px;
   color: var(--ink);
   font-family: var(--mono);
   font-size: 13px;
@@ -90,6 +94,21 @@ body {
   margin-left: auto;
   text-align: right;
 }
+.lesson-drawer-toggle {
+  border: 1px solid var(--line2);
+  background: var(--panel);
+  color: var(--spot);
+  padding: 5px 10px;
+  font: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.lesson-drawer-toggle:hover,
+.lesson-drawer-toggle:focus-visible {
+  border-color: var(--spot);
+  outline: none;
+}
 .progress {
   position: relative;
   width: 140px;
@@ -107,103 +126,11 @@ body {
 
 /* ---- layout ---- */
 .layout {
+  position: relative;
   display: flex;
   flex: 1;
-  gap: 26px;
+  gap: 0;
   min-height: 0;
-}
-.sidebar {
-  width: 236px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 22px;
-  overflow-y: auto;
-  padding-right: 6px;
-}
-.track h2 {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  margin: 0 0 8px;
-  padding-bottom: 6px;
-  border-bottom: 1px solid var(--line2);
-  color: var(--faint);
-  font-size: 10.5px;
-  font-weight: 400;
-  letter-spacing: 0.2em;
-  text-transform: uppercase;
-}
-.track h2 span {
-  color: var(--spot);
-  letter-spacing: 0.1em;
-}
-.lesson-module + .lesson-module {
-  margin-top: 10px;
-}
-.lesson-module h3 {
-  margin: 0 0 3px 22px;
-  color: var(--faint2);
-  font-size: 9.5px;
-  font-weight: 400;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.lesson-link {
-  display: grid;
-  grid-template-columns: 12px minmax(0, 1fr);
-  gap: 10px;
-  align-items: baseline;
-  width: 100%;
-  padding: 5px 6px 5px 4px;
-  background: none;
-  border: 0;
-  color: var(--faint);
-  font: inherit;
-  font-size: 12px;
-  text-align: left;
-  cursor: pointer;
-}
-.lesson-link:hover {
-  color: var(--ink);
-  background: var(--panel);
-}
-.lesson-link.current {
-  color: var(--ink);
-  background: var(--panel);
-  font-weight: 700;
-}
-.check {
-  color: var(--faint2);
-  font-size: 10px;
-}
-.lesson-link.current .check {
-  color: var(--spot);
-}
-.lesson-link.cleared .check {
-  color: var(--green);
-}
-.lesson-link-title {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.reset {
-  border: 1px solid var(--line2);
-  background: transparent;
-  color: var(--faint);
-  font: inherit;
-  font-size: 10.5px;
-  padding: 3px 9px;
-  cursor: pointer;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.reset:hover {
-  color: var(--ink);
-  border-color: var(--faint);
 }
 
 /* ---- stage ---- */
@@ -215,108 +142,17 @@ body {
   min-width: 0;
   min-height: 0;
 }
-.brief-head {
+.plate-caption {
   display: flex;
-  align-items: baseline;
-  gap: 14px;
-}
-.lesson-meta {
-  margin: 0 0 0 auto;
-  color: var(--faint2);
-  font-size: 10.5px;
-  letter-spacing: 0.2em;
+  justify-content: space-between;
+  gap: 24px;
+  padding: 1px 1px 0;
+  color: var(--faint);
+  font-size: 10px;
+  letter-spacing: 0.24em;
   text-transform: uppercase;
 }
-.lesson-title {
-  margin: 0;
-  font-family: var(--disp);
-  font-size: 22px;
-  font-weight: 800;
-  color: var(--ink);
-  letter-spacing: -0.01em;
-}
-.lesson-task {
-  margin: 8px 0 0;
-  max-width: 92ch;
-  line-height: 1.7;
-  color: var(--ink);
-  font-family: var(--body);
-  font-size: 15.5px;
-}
-.lesson-task kbd {
-  font-size: 13px;
-  padding: 1px 8px;
-}
-.lesson-task > span:first-child {
-  display: inline-block;
-  margin-right: 10px;
-  padding: 2px 7px;
-  vertical-align: 2px;
-  color: var(--spot-ink);
-  background: var(--spot);
-  font-family: var(--mono);
-  font-size: 10px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-}
-.lesson-steps {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
-  width: min(1100px, 100%);
-  margin: 8px 0 0;
-  padding: 0;
-  list-style: none;
-}
-.lesson-steps li {
-  display: grid;
-  grid-template-columns: 20px minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  min-width: 0;
-  padding: 7px 9px;
-  border: 1px solid var(--line2);
-  background: var(--panel);
-  color: var(--faint);
-  font-family: var(--body);
-  font-size: 11.5px;
-  line-height: 1.45;
-}
-.lesson-steps li.complete {
-  border-color: color-mix(in srgb, var(--green) 45%, var(--line2));
-  color: var(--ink);
-}
-.lesson-steps kbd {
-  max-width: 100%;
-  padding: 0 4px;
-  overflow-wrap: anywhere;
-  font-size: 10.5px;
-}
-.step-marker {
-  display: grid;
-  width: 19px;
-  height: 19px;
-  place-items: center;
-  border: 1px solid var(--line2);
-  color: var(--faint2);
-  font-family: var(--mono);
-  font-size: 9.5px;
-}
-.lesson-steps li.complete .step-marker {
-  border-color: var(--green);
-  color: var(--green);
-}
-.lesson-body {
-  margin: 5px 0 0;
-  max-width: 82ch;
-  line-height: 1.6;
-  color: var(--faint);
-  font-family: var(--body);
-  font-size: 12.5px;
-}
-.lesson-body kbd {
-  font-size: 11px;
-}
+
 kbd {
   display: inline-block;
   padding: 1px 6px;
@@ -330,374 +166,7 @@ kbd {
   font-weight: 500;
 }
 
-/* ---- timed drill ---- */
-.drill-panel {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 18px;
-  width: min(920px, 100%);
-  margin-top: 12px;
-  border: 1px solid var(--line2);
-  background: var(--panel);
-  padding: 9px 12px;
-}
-.drill-panel.active {
-  border-color: var(--yellow);
-}
-.drill-intro {
-  display: flex;
-  flex-direction: column;
-  gap: 3px;
-  color: var(--faint);
-  font-family: var(--body);
-  font-size: 12.5px;
-}
-.drill-eyebrow {
-  color: var(--yellow);
-  font-family: var(--mono);
-  font-size: 9.5px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.drill-launch {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  flex: 0 0 auto;
-  color: var(--faint2);
-  font-size: 10.5px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.drill-start,
-.drill-exit,
-.drill-back {
-  border: 1px solid var(--yellow);
-  background: transparent;
-  color: var(--yellow);
-  font: inherit;
-  cursor: pointer;
-}
-.drill-start {
-  padding: 6px 13px;
-  font-weight: 700;
-}
-.drill-start:hover,
-.drill-start:focus-visible {
-  background: var(--yellow);
-  color: var(--spot-ink);
-  outline: none;
-}
-.drill-metric {
-  display: flex;
-  align-items: baseline;
-  gap: 8px;
-  min-width: 110px;
-}
-.drill-metric span {
-  color: var(--faint2);
-  font-size: 9.5px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-}
-.drill-metric strong {
-  color: var(--ink);
-  font-family: var(--disp);
-  font-size: 22px;
-  font-variant-numeric: tabular-nums;
-  font-weight: 800;
-}
-.drill-metric.urgent strong {
-  color: var(--red);
-}
-.drill-score-value {
-  animation: score-pop 180ms ease-out;
-}
-@keyframes score-pop {
-  50% {
-    color: var(--green);
-    transform: scale(1.28);
-  }
-}
-.drill-exit {
-  margin-left: auto;
-  border-color: var(--line2);
-  color: var(--faint);
-  padding: 5px 9px;
-  font-size: 10.5px;
-}
-.drill-exit:hover,
-.drill-exit:focus-visible,
-.drill-back:hover,
-.drill-back:focus-visible {
-  border-color: var(--red);
-  color: var(--red);
-  outline: none;
-}
-
-/* ---- the plate: herdr's session view ---- */
-.plate {
-  position: relative;
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  border: 1px solid var(--line2);
-  background: var(--term-bg);
-  color: var(--muted);
-  font-size: 12.5px;
-  line-height: 1.4;
-}
-.plate.detached .mock {
-  filter: grayscale(0.7) brightness(0.55);
-}
-.plate-body {
-  position: relative;
-  flex: 1;
-  display: flex;
-  min-height: 0;
-}
-.mock {
-  flex: 1;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  min-height: 0;
-}
-.mock.with-sidebar {
-  grid-template-columns: minmax(150px, 17%) minmax(0, 1fr);
-}
-
-.mock-sidebar {
-  display: flex;
-  flex-direction: column;
-  min-width: 0;
-  border-right: 1px solid var(--term-border);
-  background: var(--term-side);
-  user-select: none;
-}
-/* Two equal halves, like herdr's default sidebar_section_split of 0.5. */
-.mock-half {
-  flex: 1 1 0;
-  min-height: 0;
-  overflow: hidden;
-}
-.mock-half + .mock-half {
-  border-top: 1px solid var(--term-border);
-}
-.mock-title {
-  display: flex;
-  justify-content: space-between;
-  padding: 9px 12px;
-  color: var(--muted);
-  font-weight: 700;
-}
-.mock-row {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 8px;
-  align-items: start;
-  padding: 8px 12px;
-  color: var(--dim);
-}
-.mock-row.clickable {
-  cursor: pointer;
-}
-.mock-row.active {
-  background: var(--term-active);
-}
-.mock-row strong {
-  display: block;
-  overflow: hidden;
-  color: var(--fg);
-  font-weight: 700;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.mock-row small {
-  display: block;
-  overflow: hidden;
-  margin-top: 2px;
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-}
-.mock-row.active small {
-  color: var(--spot);
-}
-.mock-dot {
-  width: 6px;
-  height: 6px;
-  margin-top: 5px;
-  border-radius: 50%;
-  background: var(--muted);
-}
-.mock-dot.dot-working {
-  background: var(--yellow);
-}
-.mock-dot.dot-blocked {
-  background: var(--red);
-}
-.mock-dot.dot-done {
-  background: var(--teal);
-}
-.mock-dot.dot-idle {
-  background: var(--green);
-}
-.mock-glyph {
-  color: var(--green);
-  line-height: 1.2;
-}
-.mock-row.working .mock-glyph,
-.mock-row.working small {
-  color: var(--yellow);
-}
-.mock-row.blocked .mock-glyph,
-.mock-row.blocked small {
-  color: var(--red);
-}
-.mock-row.done .mock-glyph,
-.mock-row.done small {
-  color: var(--teal);
-}
-.mock-row.active.working small,
-.mock-row.active.blocked small,
-.mock-row.active.done small,
-.mock-row.active.idle small {
-  color: inherit;
-}
-.mock-empty {
-  padding: 4px 12px;
-  color: var(--muted);
-  font-size: 11px;
-}
-
-.mock-main {
-  position: relative;
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  min-width: 0;
-  min-height: 0;
-}
-.mock-main.no-tabs {
-  grid-template-rows: minmax(0, 1fr);
-}
-.mock-tabs {
-  display: flex;
-  align-items: center;
-  height: 27px;
-  background: var(--term-active);
-  color: var(--muted);
-  user-select: none;
-}
-.mock-tabs span {
-  min-width: 92px;
-  height: 100%;
-  padding: 4px 14px;
-  border-right: 1px solid var(--term-border);
-  white-space: nowrap;
-}
-.mock-tabs span.active {
-  background: var(--spot);
-  color: var(--spot-ink);
-  font-weight: 800;
-}
-.mock-tabs span:last-child {
-  min-width: 40px;
-  text-align: center;
-}
-
-.panes {
-  position: relative;
-  display: flex;
-  min-height: 0;
-  min-width: 0;
-  background: var(--term-bg);
-}
-
-.zoom-flag {
-  position: absolute;
-  z-index: 2;
-  top: 10px;
-  right: 16px;
-  padding: 2px 8px;
-  border: 1px solid var(--yellow);
-  background: var(--term-bg);
-  color: var(--yellow);
-  font-size: 10px;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-}
-.detached-note {
-  position: absolute;
-  z-index: 2;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  max-width: calc(100% - 32px);
-  border: 1px solid var(--yellow);
-  background: var(--term-bg);
-  padding: 7px 12px;
-  color: var(--fg);
-  font-size: 12px;
-  white-space: nowrap;
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
-}
-.detached-note strong {
-  color: var(--yellow);
-  font-weight: 700;
-  letter-spacing: 0.1em;
-  text-transform: uppercase;
-  font-size: 10px;
-}
-.detached-note kbd {
-  font-size: 11px;
-}
-
-.mode-overlay {
-  position: absolute;
-  z-index: 2;
-  top: 18px;
-  left: 50%;
-  min-width: 280px;
-  transform: translateX(-50%);
-  border: 1px solid var(--spot);
-  background: var(--term-active);
-  padding: 12px 16px;
-  color: var(--fg);
-  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.55);
-}
-.mode-overlay p {
-  margin: 2px 0;
-}
-.overlay-title {
-  margin-bottom: 8px !important;
-  color: var(--spot);
-  font-weight: 800;
-}
-.mode-overlay .selected {
-  color: var(--spot);
-  background: rgba(203, 166, 247, 0.1);
-}
-.mode-overlay small {
-  display: block;
-  margin-top: 10px;
-  color: var(--muted);
-}
-.compact-overlay {
-  top: auto;
-  right: 18px;
-  bottom: 18px;
-  left: auto;
-  min-width: 240px;
-  transform: none;
-}
-
-/* ---- victory ---- */
+/* ---- result dialogs: shared shell for LessonCleared and DrillResult ---- */
 .victory {
   position: absolute;
   inset: 0;
@@ -754,154 +223,6 @@ kbd {
   background: transparent;
   color: var(--spot);
 }
-.victory-next kbd {
-  border-color: rgba(23, 23, 26, 0.35);
-  background: transparent;
-  color: inherit;
-  font-weight: 500;
-}
-.victory-next:hover kbd {
-  border-color: var(--line2);
-}
-.victory.sheet {
-  align-items: end;
-  background: linear-gradient(to bottom, rgba(17, 17, 27, 0) 30%, rgba(17, 17, 27, 0.9) 100%);
-  animation: rise 220ms ease;
-}
-@keyframes rise {
-  from {
-    opacity: 0;
-    transform: translateY(12px);
-  }
-}
-.sheet-card {
-  width: calc(100% - 24px);
-  margin-bottom: 12px;
-  display: flex;
-  align-items: center;
-  gap: 24px;
-  text-align: left;
-  padding: 16px 22px;
-}
-.sheet-main {
-  flex: 1;
-  min-width: 0;
-}
-.sheet-main .victory-head {
-  margin-bottom: 4px;
-  font-size: 18px;
-}
-.sheet-main .victory-takeaway {
-  margin: 0;
-  max-width: none;
-}
-.sheet-side {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 8px;
-  flex: 0 0 auto;
-}
-.sheet-side .victory-stats {
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  white-space: nowrap;
-}
-.victory-again {
-  border: none;
-  background: none;
-  color: var(--muted);
-  font: inherit;
-  font-size: 11px;
-  cursor: pointer;
-  text-decoration: underline;
-}
-.victory-again:hover {
-  color: var(--fg);
-}
-.drill-result-card {
-  max-width: 480px;
-}
-.drill-result-kicker {
-  margin: 0 0 4px;
-  color: var(--yellow);
-  font-size: 10px;
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-}
-.drill-result-score {
-  margin: -4px 0 2px;
-  color: var(--ink);
-  font-family: var(--disp);
-  font-size: 72px;
-  font-weight: 800;
-  line-height: 0.95;
-}
-.drill-result-actions {
-  display: flex;
-  justify-content: center;
-  gap: 10px;
-}
-.drill-back {
-  border-color: var(--line2);
-  background: transparent;
-  color: var(--faint);
-  padding: 8px 14px;
-}
-.drill-result-actions kbd {
-  margin-left: 5px;
-  font-size: 10px;
-}
-
-/* ---- statusline: tmux's bar, in the plate's palette ---- */
-.statusline {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  font-size: 11.5px;
-  color: var(--dim);
-  background: var(--term-active);
-  border-top: 1px solid var(--term-border);
-  padding: 4px 12px;
-  transition: background 120ms ease;
-}
-.statusline-session {
-  padding: 0 6px;
-  color: var(--spot-ink);
-  background: var(--spot);
-  font-weight: 700;
-}
-.statusline.armed {
-  background: var(--spot);
-  color: var(--spot-ink);
-}
-.statusline.armed .statusline-session {
-  background: var(--spot-ink);
-  color: var(--spot);
-}
-.statusline-windows {
-  display: flex;
-  gap: 10px;
-}
-.statusline-window {
-  opacity: 0.6;
-}
-.statusline-window.current {
-  opacity: 1;
-  color: var(--fg);
-  font-weight: 700;
-}
-.statusline.armed .statusline-window.current {
-  color: inherit;
-}
-.statusline-action {
-  flex: 1;
-  text-align: center;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
 
 @media (max-width: 900px) {
   body {
@@ -926,103 +247,13 @@ kbd {
     flex-direction: column;
   }
 
-  .sidebar {
-    width: 100%;
-    max-height: 320px;
-  }
-
   .stage {
     min-height: 680px;
-  }
-
-  .lesson-steps {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .mock.with-sidebar {
-    grid-template-columns: minmax(0, 1fr);
-  }
-  .mock-sidebar {
-    display: none;
-  }
-
-  .statusline-windows {
-    display: none;
-  }
-
-  .sheet-card {
-    flex-direction: column;
-    align-items: stretch;
-  }
-
-  .sheet-side {
-    align-items: flex-start;
   }
 }
 
 @media (max-width: 560px) {
-  .lesson-title {
-    font-size: 19px;
-  }
-
-  .panes {
-    min-height: 360px;
-  }
-
   .victory-card {
     padding: 20px 16px;
   }
-
-  .drill-panel,
-  .drill-result-actions {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .drill-panel.active {
-    display: grid;
-    grid-template-columns: repeat(3, 1fr);
-  }
-
-  .drill-panel.active .drill-exit {
-    grid-column: 1 / -1;
-    margin: 0;
-  }
-
-  .drill-launch {
-    justify-content: space-between;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .victory,
-  .drill-score-value {
-    animation: none;
-  }
-}
-
-/* ---- text entry inside an overlay (rename, copy-mode search) ---- */
-.overlay-input {
-  font-family: inherit;
-  min-height: 1.4em;
-  padding: 4px 8px;
-  border: 1px solid var(--faint2);
-  background: var(--term-bg);
-  color: var(--fg);
-  white-space: pre;
-}
-.overlay-caret {
-  color: var(--spot);
-  animation: caret-blink 900ms ease-in-out infinite;
-}
-@keyframes caret-blink {
-  50% {
-    opacity: 0.2;
-  }
-}
-.stopped-note {
-  border-color: var(--red);
-}
-.stopped-note strong {
-  color: var(--red);
 }

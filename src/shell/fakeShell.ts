@@ -7,17 +7,9 @@ const X = "\x1b[0m"
 
 const PROMPT = `${G}➜${X}  ${C}~${X} `
 
-const FILES = [
-  `${C}src/${X}`,
-  `${C}node_modules/${X}`,
-  "README.md",
-  "package.json",
-  ".tmux.conf",
-]
+const FILES = [`${C}src/${X}`, `${C}node_modules/${X}`, "README.md", "package.json", ".tmux.conf"]
 
-type ShellEffect =
-  | { kind: "print"; lines: string[] }
-  | { kind: "clear" }
+type ShellEffect = { kind: "print"; lines: string[] } | { kind: "clear" }
 
 function evaluate(input: string): ShellEffect {
   const [command = "", ...args] = input.split(/\s+/)
@@ -80,9 +72,8 @@ export function startShell(
       const command = input.trim()
       term.write("\r\n")
       const commandOutput = onCommand(command)
-      const effect: ShellEffect = commandOutput === null
-        ? evaluate(command)
-        : { kind: "print", lines: commandOutput }
+      const effect: ShellEffect =
+        commandOutput === null ? evaluate(command) : { kind: "print", lines: commandOutput }
       if (effect.kind === "clear") term.clear()
       else for (const line of effect.lines) term.writeln(line)
       input = ""
@@ -112,6 +103,7 @@ export function startShell(
       return
     }
 
+    // eslint-disable-next-line no-control-regex -- drops escape sequences and control bytes
     if (data.startsWith("\u001b") || /[\u0000-\u001f]/.test(data)) return
     input += data
     term.write(data)

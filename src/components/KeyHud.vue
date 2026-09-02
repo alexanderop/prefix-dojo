@@ -1,12 +1,12 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { PREFIX } from "../engine/bindings"
-import type { Keymap, TrainerMode } from "../engine/multiplexer"
+import type { InputKind } from "../lessons"
+import type { Tool, TrainerMode } from "../engine/multiplexer"
 
 const props = defineProps<{
   mode: TrainerMode
-  keymap: Keymap
-  input: "keyboard" | "mouse" | "shell"
+  tool: Tool
+  input: InputKind
   /** Keys pressed so far, newest last, in display spelling. */
   trail: string[]
   flash: "bad" | "good" | null
@@ -16,17 +16,23 @@ const props = defineProps<{
   openHelp: () => void
 }>()
 
-const label = computed(() => {
-  switch (props.mode.kind) {
+const INPUT_LABELS: Record<InputKind, string> = {
+  keyboard: "terminal",
+  mouse: "mouse",
+  shell: "shell",
+}
+
+function labelFor(mode: TrainerMode, input: InputKind): string {
+  switch (mode.kind) {
     case "terminal":
-      return props.input === "shell" ? "shell" : props.input === "mouse" ? "mouse" : "terminal"
+      return INPUT_LABELS[input]
     case "prefix":
       return "prefix armed"
     case "copy":
-      if (props.mode.search?.typing) return "copy · search"
-      return props.mode.selecting ? "copy · selecting" : "copy mode"
+      if (mode.search?.typing) return "copy · search"
+      return mode.selecting ? "copy · selecting" : "copy mode"
     case "rename":
-      return `rename ${props.mode.target}`
+      return `rename ${mode.target}`
     case "resize":
       return "resize mode"
     case "workspace-picker":
@@ -36,13 +42,17 @@ const label = computed(() => {
     case "goto":
       return "go to"
   }
-})
+}
 
-const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
+const label = computed(() => labelFor(props.mode, props.input))
 </script>
 
 <template>
-  <section class="hud" :class="[`mode-${mode.kind}`, flash ? `flash-${flash}` : null]" aria-live="polite">
+  <section
+    class="hud"
+    :class="[`mode-${mode.kind}`, flash ? `flash-${flash}` : null]"
+    aria-live="polite"
+  >
     <div class="hud-row">
       <span class="hud-mode">
         <span class="hud-dot"></span>
@@ -57,8 +67,9 @@ const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
           <kbd
             v-for="(key, index) in trail"
             :key="index"
-            :class="{ prefix: key === PREFIX, last: index === trail.length - 1 }"
-          >{{ key }}</kbd>
+            :class="{ prefix: key === tool.prefix, last: index === trail.length - 1 }"
+            >{{ key }}</kbd
+          >
         </template>
         <span v-if="mode.kind === 'prefix'" class="hud-cursor">▮</span>
       </span>
@@ -73,7 +84,7 @@ const tool = computed(() => (props.keymap === "tmux" ? "tmux" : "Herdr"))
           {{ elapsed.toFixed(1) }}s
         </span>
         <button class="hud-help" type="button" @click="openHelp">
-          <kbd>?</kbd> all {{ tool }} keys
+          <kbd>?</kbd> all {{ tool.label }} keys
         </button>
       </span>
     </div>

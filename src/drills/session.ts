@@ -22,9 +22,7 @@ export interface FinishedDrillSession {
 
 export type IdleDrillSession = ReadyDrillSession | FinishedDrillSession
 
-export type DrillSession<Round> =
-  | IdleDrillSession
-  | RunningDrillSession<Round>
+export type DrillSession<Round> = IdleDrillSession | RunningDrillSession<Round>
 
 type CreateRound<Round> = (previous: Round | null) => Round
 

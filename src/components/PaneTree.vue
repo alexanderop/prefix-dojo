@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stripAnsi } from "../engine/ansi"
 import { containsPane, type PaneNode } from "../engine/multiplexer"
 import TerminalPane from "./TerminalPane.vue"
 
@@ -10,7 +11,9 @@ defineOptions({ name: "PaneTree" })
  * sidebar and the pane's own output.
  */
 function titleOf(lines: string[]): string {
-  const first = (lines[0] ?? "").replace(/\x1b\[[0-9;]*m/g, "").replace(/^#\s*/, "").trim()
+  const first = stripAnsi(lines[0] ?? "")
+    .replace(/^#\s*/, "")
+    .trim()
   const agent = /^(\S+)\s+●/.exec(first)
   return agent ? agent[1] : first
 }
@@ -43,7 +46,10 @@ defineProps<{
   <div
     v-else
     class="split"
-    :class="[node.dir, { 'zoom-hidden': zoomedPaneId !== null && !containsPane(node, zoomedPaneId) }]"
+    :class="[
+      node.dir,
+      { 'zoom-hidden': zoomedPaneId !== null && !containsPane(node, zoomedPaneId) },
+    ]"
   >
     <PaneTree
       :node="node.children[0]"

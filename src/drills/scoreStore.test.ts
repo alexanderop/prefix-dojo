@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest"
-import {
-  NAVIGATION_BEST_SCORE_KEY,
-  loadNavigationBestScore,
-  saveNavigationBestScore,
-  type ScoreStorage,
-} from "./scoreStore"
+import { bestScoreKey, loadBestScore, saveBestScore, type ScoreStorage } from "./scoreStore"
+
+const KEY = bestScoreKey("tmux-navigate")
+const loadNavigationBestScore = (storage: ScoreStorage) => loadBestScore(storage, KEY)
+const saveNavigationBestScore = (storage: ScoreStorage, score: number) =>
+  saveBestScore(storage, KEY, score)
 
 function memoryStorage(initial: string | null = null): ScoreStorage & { value: string | null } {
   return {
@@ -36,7 +36,7 @@ describe("navigation best score storage", () => {
     saveNavigationBestScore(storage, 9)
 
     expect(storage.value).toBe("9")
-    expect(NAVIGATION_BEST_SCORE_KEY).toBe("prefix-dojo/drills/tmux-navigate/v1/best")
+    expect(KEY).toBe("prefix-dojo/drills/tmux-navigate/v1/best")
   })
 
   it("does not let unavailable storage break the drill", () => {

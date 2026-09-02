@@ -1,13 +1,23 @@
 /**
- * Reference table of the bindings the trainer implements. The key help
- * overlay and the key HUD render from this, so it must match
- * `multiplexer.ts`. Keys use the same [bracket] spelling as lesson text.
+ * What a tool looks like to the trainer: its prefix, its binding table, its
+ * copy-mode keys, and the shell commands it understands. `src/tools/` holds
+ * one descriptor per tool; the engine, the key help overlay, and the key HUD
+ * all read from the same table, so a binding exists in exactly one place.
  */
-import type { Keymap, TrainerMode } from "./multiplexer"
+import type { KeyInput, TrainerMode, TrainerState } from "./state"
 
-export interface Binding {
+export type ToolId = "tmux" | "herdr"
+
+/** A key or key group and what it does, in display spelling. */
+export interface KeyHint {
   keys: string[]
   does: string
+}
+
+export interface Binding extends KeyHint {
+  /** Matches labels the display keys cannot enumerate, e.g. every digit. */
+  matches?: (label: string) => boolean
+  run: (state: TrainerState, label: string) => void
 }
 
 export interface BindingGroup {
@@ -15,118 +25,79 @@ export interface BindingGroup {
   items: Binding[]
 }
 
+export interface CopyModeSpec {
+  /** Label of the key that starts a selection. */
+  select: string
+  /** Label of the key that copies the selection and leaves. */
+  copy: string
+  /** Whether `/` and `?` start a history search and `n` / `N` repeat it. */
+  search: boolean
+  /** Keys that do something in copy mode, for the HUD. */
+  hints: KeyHint[]
+}
+
+export interface ShellCommandRule {
+  pattern: RegExp
+  /** Mutates the cloned state and returns the lines the fake shell prints. */
+  run: (state: TrainerState, match: RegExpExecArray) => string[]
+}
+
+export interface Tool {
+  id: ToolId
+  /** Display name: "tmux", "Herdr". */
+  label: string
+  /** Chord that arms the prefix, in display spelling. */
+  prefix: string
+  sessionName: string
+  /** Shell command that reattaches after a detach. */
+  attachCommand: string
+  tab: { word: "window" | "tab"; firstNumber: 0 | 1 }
+  hasWorkspaces: boolean
+  hasSidebar: boolean
+  /** Caption above the practice terminal. */
+  caption: string
+  /** Footer of the key help overlay: how the real tool shows this list. */
+  helpNote: string
+  bindings: BindingGroup[]
+  copy: CopyModeSpec
+  shellCommands: ShellCommandRule[]
+}
+
 export const PREFIX = "ctrl+b"
 
-export const bindings: Record<Keymap, BindingGroup[]> = {
-  tmux: [
-    {
-      name: "Session",
-      items: [
-        { keys: ["?"], does: "list key bindings" },
-        { keys: ["d"], does: "detach client, keep the session" },
-        { keys: [PREFIX], does: "send a literal ctrl+b to the shell" },
-      ],
-    },
-    {
-      name: "Panes",
-      items: [
-        { keys: ["%"], does: "split pane left / right" },
-        { keys: ['"'], does: "split pane top / bottom" },
-        { keys: ["←", "→", "↑", "↓"], does: "move focus by direction" },
-        { keys: ["o"], does: "cycle to the next pane" },
-        { keys: ["z"], does: "zoom / unzoom the focused pane" },
-        { keys: ["x"], does: "close the focused pane" },
-      ],
-    },
-    {
-      name: "Windows",
-      items: [
-        { keys: ["c"], does: "create a window" },
-        { keys: ["n"], does: "next window" },
-        { keys: ["p"], does: "previous window" },
-        { keys: ["0"], does: "…9 jump to a window by number (counts from 0)" },
-      ],
-    },
-    {
-      name: "History",
-      items: [{ keys: ["["], does: "enter copy mode" }],
-    },
-  ],
-  herdr: [
-    {
-      name: "Session",
-      items: [
-        { keys: ["?"], does: "key help for the active config" },
-        { keys: ["q"], does: "detach client, keep the server" },
-        { keys: ["b"], does: "toggle the agent sidebar" },
-        { keys: ["g"], does: "open the session navigator" },
-        { keys: ["o"], does: "jump to the visible notification" },
-      ],
-    },
-    {
-      name: "Panes",
-      items: [
-        { keys: ["v"], does: "split right (vertical divider)" },
-        { keys: ["-"], does: "split down (horizontal divider)" },
-        { keys: ["h", "j", "k", "l"], does: "move focus left / down / up / right" },
-        { keys: ["shift+h", "shift+j", "shift+k", "shift+l"], does: "swap with the neighbor" },
-        { keys: ["tab", "shift+tab"], does: "cycle to the next / previous pane" },
-        { keys: ["z"], does: "zoom / unzoom the focused pane" },
-        { keys: ["r"], does: "enter resize mode" },
-        { keys: ["shift+p"], does: "rename the focused pane" },
-        { keys: ["x"], does: "close the focused pane" },
-      ],
-    },
-    {
-      name: "Tabs",
-      items: [
-        { keys: ["c"], does: "create a tab" },
-        { keys: ["n"], does: "next tab" },
-        { keys: ["p"], does: "previous tab" },
-        { keys: ["1"], does: "…9 jump to a tab by number (counts from 1)" },
-        { keys: ["shift+t"], does: "rename the tab" },
-        { keys: ["shift+x"], does: "close the tab" },
-      ],
-    },
-    {
-      name: "Workspaces and Git",
-      items: [
-        { keys: ["shift+n"], does: "create a workspace" },
-        { keys: ["w"], does: "workspace navigation" },
-        { keys: ["shift+w"], does: "rename the workspace" },
-        { keys: ["shift+d"], does: "close the workspace" },
-        { keys: ["shift+g"], does: "create a Git worktree" },
-      ],
-    },
-    {
-      name: "History",
-      items: [{ keys: ["["], does: "enter copy mode" }],
-    },
-  ],
+export function allBindings(tool: Tool): Binding[] {
+  return tool.bindings.flatMap((group) => group.items)
+}
+
+export function findBinding(tool: Tool, label: string): Binding | undefined {
+  return allBindings(tool).find((binding) =>
+    binding.matches ? binding.matches(label) : binding.keys.includes(label),
+  )
+}
+
+export function isPrefixChord(tool: Tool, label: string): boolean {
+  return label === tool.prefix
 }
 
 export interface ModeHint {
   /** One sentence that says who receives the next key. */
   text: string
   /** Keys that do something in this mode, in display spelling. */
-  keys: Binding[]
+  keys: KeyHint[]
 }
 
-const TOOL: Record<Keymap, string> = { tmux: "tmux", herdr: "Herdr" }
-
 /** What the next key will do, given the current mode. */
-export function modeHint(mode: TrainerMode, keymap: Keymap): ModeHint {
-  const tool = TOOL[keymap]
+export function modeHint(mode: TrainerMode, tool: Tool): ModeHint {
   switch (mode.kind) {
     case "terminal":
       return {
-        text: `Keys go to the focused pane's shell. ${tool} ignores them until you press the prefix.`,
-        keys: [{ keys: [PREFIX], does: `arm the prefix, then ${tool} reads one key` }],
+        text: `Keys go to the focused pane's shell. ${tool.label} ignores them until you press the prefix.`,
+        keys: [{ keys: [tool.prefix], does: `arm the prefix, then ${tool.label} reads one key` }],
       }
     case "prefix":
       return {
-        text: `${tool} is listening. The next key is a command, not shell input.`,
-        keys: bindings[keymap].flatMap((group) => group.items),
+        text: `${tool.label} is listening. The next key is a command, not shell input.`,
+        keys: allBindings(tool),
       }
     case "copy":
       if (mode.search?.typing) {
@@ -143,22 +114,7 @@ export function modeHint(mode: TrainerMode, keymap: Keymap): ModeHint {
         text: mode.selecting
           ? "Selection started. Move to extend it, then copy."
           : "Copy mode: navigation keys move through pane history. The process keeps running.",
-        keys:
-          keymap === "tmux"
-            ? [
-                { keys: ["↑", "↓", "page up", "page down"], does: "move" },
-                { keys: ["space"], does: "start selection" },
-                { keys: ["enter"], does: "copy and leave" },
-                { keys: ["q"], does: "leave copy mode" },
-              ]
-            : [
-                { keys: ["h", "j", "k", "l", "page up"], does: "move" },
-                { keys: ["/", "?"], does: "search forward / backward" },
-                { keys: ["n", "N"], does: "repeat the search, same / opposite direction" },
-                { keys: ["v"], does: "start selection" },
-                { keys: ["y"], does: "copy and leave" },
-                { keys: ["q"], does: "leave copy mode" },
-              ],
+        keys: tool.copy.hints,
       }
     case "rename":
       return {
@@ -199,7 +155,9 @@ export function modeHint(mode: TrainerMode, keymap: Keymap): ModeHint {
 }
 
 /** Keys the lesson task names inside [brackets], minus the prefix itself. */
-export function taskKeys(task: string): string[] {
+export function taskKeys(task: string, prefix: string = PREFIX): string[] {
   const found = [...task.matchAll(/\[([^\]]+)\]/g)].map((match) => match[1])
-  return [...new Set(found.filter((key) => key !== PREFIX))]
+  return [...new Set(found.filter((key) => key !== prefix))]
 }
+
+export type { KeyInput }

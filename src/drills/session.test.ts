@@ -8,7 +8,7 @@ import {
   startDrill,
 } from "./session"
 
-const nextRound = (previous: string | null): string => previous === "alpha" ? "beta" : "alpha"
+const nextRound = (previous: string | null): string => (previous === "alpha" ? "beta" : "alpha")
 
 describe("drill session", () => {
   it("starts a 60 second run with a fresh round", () => {
@@ -50,11 +50,13 @@ describe("drill session", () => {
       createRound: nextRound,
     })
 
-    expect(recordDrillSuccess({
-      session: running,
-      nowMs: DRILL_DURATION_MS,
-      createRound: nextRound,
-    })).toEqual({
+    expect(
+      recordDrillSuccess({
+        session: running,
+        nowMs: DRILL_DURATION_MS,
+        createRound: nextRound,
+      }),
+    ).toEqual({
       kind: "finished",
       score: 0,
       bestScore: 2,

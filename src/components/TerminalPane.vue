@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { stripAnsi } from "../engine/ansi"
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from "vue"
 import { Terminal, type IDisposable } from "@xterm/xterm"
 import { FitAddon } from "@xterm/addon-fit"
@@ -22,7 +23,7 @@ const host = ref<HTMLDivElement | null>(null)
 
 /** Herdr colours a pane by its agent state; mirror that on the frame. */
 const agentState = computed(() => {
-  const first = (props.lines[0] ?? "").replace(/\x1b\[[0-9;]*m/g, "")
+  const first = stripAnsi(props.lines[0] ?? "")
   const match = /●\s*(blocked|working|done|idle)/.exec(first)
   return match?.[1] ?? null
 })
@@ -117,7 +118,12 @@ onBeforeUnmount(() => {
 <template>
   <div
     class="pane"
-    :class="{ active, single, 'zoom-hidden': zoomHidden, [`state-${agentState}`]: agentState !== null }"
+    :class="{
+      active,
+      single,
+      'zoom-hidden': zoomHidden,
+      [`state-${agentState}`]: agentState !== null,
+    }"
     @mousedown="focusPane(paneId)"
   >
     <!-- Border runs through the middle of the edge cell, like a box-drawing glyph. -->

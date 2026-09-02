@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest"
-import { bindings, modeHint, PREFIX, taskKeys } from "./bindings"
+import { allBindings, modeHint, PREFIX, taskKeys } from "./bindings"
 import { applyKey, initialState, leaf, type KeyInput, type Keymap } from "./multiplexer"
 import { lessons } from "../lessons"
+import { tools } from "../tools"
 
 const NAMED: Record<string, string> = {
   "←": "ArrowLeft",
@@ -35,7 +36,7 @@ function afterPrefix(keymap: Keymap, label: string) {
 describe("binding reference table", () => {
   for (const keymap of ["tmux", "herdr"] as const) {
     it(`every listed ${keymap} key is handled by the engine`, () => {
-      const labels = bindings[keymap].flatMap((group) => group.items.flatMap((item) => item.keys))
+      const labels = allBindings(tools[keymap]).flatMap((item) => item.keys)
       for (const label of labels) {
         const next = afterPrefix(keymap, label)
         expect(next.lastAction, `${keymap} prefix + ${label}`).not.toMatch(/no binding/)
@@ -45,9 +46,7 @@ describe("binding reference table", () => {
 
   it("names every key a keyboard lesson asks for", () => {
     for (const lesson of lessons.filter((item) => item.input === "keyboard")) {
-      const known = new Set(
-        bindings[lesson.keymap].flatMap((group) => group.items.flatMap((item) => item.keys)),
-      )
+      const known = new Set(allBindings(tools[lesson.keymap]).flatMap((item) => item.keys))
       const prefixed = taskKeys(lesson.task).filter((key) => known.has(key))
       expect(prefixed.length, lesson.slug).toBeGreaterThan(0)
     }
@@ -66,12 +65,12 @@ describe("taskKeys", () => {
 
 describe("modeHint", () => {
   it("offers only the prefix while typing goes to the shell", () => {
-    const hint = modeHint({ kind: "terminal" }, "tmux")
+    const hint = modeHint({ kind: "terminal" }, tools.tmux)
     expect(hint.keys.map((item) => item.keys)).toEqual([[PREFIX]])
   })
 
   it("lists the whole keymap once the prefix is armed", () => {
-    const hint = modeHint({ kind: "prefix" }, "herdr")
+    const hint = modeHint({ kind: "prefix" }, tools.herdr)
     expect(hint.keys.some((item) => item.keys.includes("v"))).toBe(true)
   })
 })
