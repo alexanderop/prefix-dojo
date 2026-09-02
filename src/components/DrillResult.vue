@@ -3,6 +3,7 @@ import type { FinishedDrillSession } from "../drills/session"
 
 defineProps<{
   title: string
+  target: number
   session: FinishedDrillSession
   retry: () => void
   back: () => void
@@ -14,11 +15,13 @@ defineProps<{
     <div class="victory-card drill-result-card">
       <p class="drill-result-kicker">{{ title }}</p>
       <p id="drill-result-title" class="victory-head">
-        {{ session.isNewBest ? "NEW BEST" : "TIME" }}
+        {{ session.isNewBest ? (session.bestScore >= target ? "CLEARED" : "NEW BEST") : "TIME" }}
       </p>
       <p class="drill-result-score">{{ session.score }}</p>
       <p class="victory-stats">
-        {{ session.score === 1 ? "pane reached" : "panes reached" }} · best {{ session.bestScore }}
+        {{ session.score === 1 ? "clean round" : "clean rounds" }}
+        <template v-if="session.misses > 0"> · {{ session.misses }} over par</template>
+        · best {{ session.bestScore }} · target {{ target }}
       </p>
       <div class="drill-result-actions">
         <button class="victory-next" @click="retry">retry <kbd>enter</kbd></button>

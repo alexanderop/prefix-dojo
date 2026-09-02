@@ -216,6 +216,24 @@ describe("curriculum", () => {
     }
   })
 
+  it("gives every drill entry a drill and a reachable target", () => {
+    const drills = lessons.filter((lesson) => lesson.input === "drill")
+    expect(drills.length).toBeGreaterThan(0)
+    for (const lesson of drills) {
+      expect(lesson.drill, `drill entry ${lesson.slug} has no drill`).toBeDefined()
+      expect(lesson.drill?.target).toBeGreaterThan(0)
+      expect(lesson.goal(lesson.setup())).toBe(false)
+    }
+  })
+
+  it("places each drill in the module it repeats", () => {
+    for (const [index, lesson] of lessons.entries()) {
+      if (lesson.input !== "drill" || lesson.module === "Final drill") continue
+      const previous = lessons[index - 1]
+      expect(previous?.module, `${lesson.slug} sits outside its module`).toBe(lesson.module)
+    }
+  })
+
   it("covers every core multiplexer concept", () => {
     const modules = new Set(lessons.map((lesson) => `${lesson.track}:${lesson.module}`))
     expect([...modules]).toEqual(
@@ -242,7 +260,7 @@ describe("curriculum", () => {
   })
 
   it("has an executable solution for every lesson", () => {
-    expect(solutions).toHaveLength(lessons.length)
+    expect(solutions).toHaveLength(lessons.filter((lesson) => lesson.input !== "drill").length)
     for (const [slug, solve] of solutions) {
       const lesson = lessons.find((candidate) => candidate.slug === slug)
       expect(lesson, `missing lesson ${slug}`).toBeDefined()

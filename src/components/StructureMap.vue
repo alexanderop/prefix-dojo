@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue"
-import { leaves, type Tool, type TrainerState } from "../engine/multiplexer"
+import { did, leaves, type Tool, type TrainerState } from "../engine/multiplexer"
 
 const props = defineProps<{
   state: TrainerState
@@ -23,7 +23,11 @@ const levels = computed<Level[]>(() => {
   const session: Level = {
     term: "session",
     value: props.tool.sessionName,
-    flags: state.detached ? ["detached"] : [],
+    flags: state.serverStopped
+      ? ["stopped"]
+      : state.detached
+        ? [did(state, "detached") ? "detached" : "not attached"]
+        : [],
   }
 
   const windowLevel: Level = {
@@ -53,7 +57,10 @@ const levels = computed<Level[]>(() => {
   <nav class="map" aria-label="where you are">
     <template v-for="(level, index) in levels" :key="level.term">
       <span v-if="index > 0" class="map-arrow" aria-hidden="true">›</span>
-      <span class="map-level" :class="{ detached: level.flags.includes('detached') }">
+      <span
+        class="map-level"
+        :class="{ detached: level.term === 'session' && level.flags.length > 0 }"
+      >
         <span class="map-term">{{ level.term }}</span>
         <span class="map-value">{{ level.value }}</span>
         <span v-for="flag in level.flags" :key="flag" class="map-flag">{{ flag }}</span>

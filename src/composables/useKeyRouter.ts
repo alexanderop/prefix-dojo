@@ -51,6 +51,20 @@ export function useKeyRouter({
     }
 
     const state = trainer.state.value
+    if (trainer.lesson.value.input === "drill" && state.mode.kind === "terminal") {
+      const session = trainer.drill.session.value
+      if (session.kind === "ready" && e.key === "Enter") {
+        swallow(e)
+        trainer.drill.start()
+        return
+      }
+      if (session.kind === "running" && e.key === "Escape") {
+        swallow(e)
+        trainer.drill.exit()
+        return
+      }
+    }
+
     if (trainer.done.value) {
       if (e.key === "Enter") {
         swallow(e)

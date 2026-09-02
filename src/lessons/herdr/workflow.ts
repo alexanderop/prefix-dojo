@@ -1,6 +1,18 @@
 /** Worktrees, sidebar, persistence, remote attach, and integrations. */
 import { did, initialState, leaf } from "../../engine/multiplexer"
-import { G, Y, R, C, DIM, X, shellPane, splitRow, splitColumn, oneShell } from "../helpers"
+import {
+  G,
+  Y,
+  R,
+  C,
+  DIM,
+  X,
+  shellPane,
+  splitRow,
+  splitColumn,
+  oneShell,
+  outsideShell,
+} from "../helpers"
 import type { Lesson } from "../types"
 
 export const lessons: Lesson[] = [
@@ -122,7 +134,7 @@ export const lessons: Lesson[] = [
       "Put workbox in ~/.ssh/config. Remote attach uses normal OpenSSH authentication and can bridge local image clipboard paste. Plain ssh followed by herdr is the better fit for phone clients.",
     keymap: "herdr",
     input: "shell",
-    setup: () => oneShell(`${DIM}# normal local shell; workbox is in ~/.ssh/config${X}`),
+    setup: () => outsideShell(`${DIM}# normal local shell; workbox is in ~/.ssh/config${X}`),
     goal: (state) => did(state, "remote-attached"),
   },
   {

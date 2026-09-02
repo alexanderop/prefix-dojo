@@ -139,6 +139,8 @@ export interface InitialStateInput {
   activeWorkspace?: number
   notificationPaneId?: number
   agentPanes?: Record<string, number>
+  /** True when the lesson starts in a plain shell, before the tool is attached. */
+  detached?: boolean
 }
 
 export function leaf(id: number, lines: string[] = [], variant: PaneVariant = "static"): PaneLeaf {
@@ -159,7 +161,7 @@ export function initialState(input: InitialStateInput): TrainerState {
     workspaces,
     activeWorkspace: input.activeWorkspace ?? 0,
     nextPaneId: maxPaneId(input.root) + 1,
-    detached: false,
+    detached: input.detached ?? false,
     serverStopped: false,
     zoomedPaneId: null,
     sidebarVisible: true,

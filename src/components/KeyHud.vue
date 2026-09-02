@@ -20,6 +20,7 @@ const INPUT_LABELS: Record<InputKind, string> = {
   keyboard: "terminal",
   mouse: "mouse",
   shell: "shell",
+  drill: "drill",
 }
 
 function labelFor(mode: TrainerMode, input: InputKind): string {
@@ -75,7 +76,7 @@ const label = computed(() => labelFor(props.mode, props.input))
       </span>
 
       <span class="hud-stats">
-        <span v-if="input === 'keyboard'" class="hud-stat">
+        <span v-if="input === 'keyboard' || input === 'drill'" class="hud-stat">
           <span class="hud-stat-label">keys</span>
           {{ keystrokes }}<span v-if="par !== undefined" class="hud-par"> / {{ par }}</span>
         </span>
@@ -87,6 +88,9 @@ const label = computed(() => labelFor(props.mode, props.input))
           <kbd>?</kbd> all {{ tool.label }} keys
         </button>
       </span>
+    </div>
+    <div v-if="$slots.guide" class="hud-foot hud-guide">
+      <slot name="guide" />
     </div>
     <div v-if="$slots.default" class="hud-foot">
       <slot />

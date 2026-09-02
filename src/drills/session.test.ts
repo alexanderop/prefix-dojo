@@ -22,6 +22,7 @@ describe("drill session", () => {
       kind: "running",
       previousBest: 4,
       score: 0,
+      misses: 0,
       deadlineMs: 1_000 + DRILL_DURATION_MS,
       round: "alpha",
     })
@@ -40,7 +41,24 @@ describe("drill session", () => {
       createRound: nextRound,
     })
 
-    expect(next).toMatchObject({ kind: "running", score: 1, round: "beta" })
+    expect(next).toMatchObject({ kind: "running", score: 1, misses: 0, round: "beta" })
+  })
+
+  it("counts an over-par solve as a miss and still moves on", () => {
+    const running = startDrill({
+      session: createReadyDrill(0),
+      nowMs: 0,
+      createRound: nextRound,
+    })
+
+    const next = recordDrillSuccess({
+      session: running,
+      nowMs: 12_000,
+      createRound: nextRound,
+      withinPar: false,
+    })
+
+    expect(next).toMatchObject({ kind: "running", score: 0, misses: 1, round: "beta" })
   })
 
   it("does not award a point at or after the deadline", () => {
@@ -59,6 +77,7 @@ describe("drill session", () => {
     ).toEqual({
       kind: "finished",
       score: 0,
+      misses: 0,
       bestScore: 2,
       isNewBest: false,
     })
@@ -72,6 +91,7 @@ describe("drill session", () => {
         createRound: nextRound,
       }),
       score: 3,
+      misses: 2,
     }
 
     expect(advanceDrillClock({ session: running, nowMs: 60_499 })).toBe(running)
@@ -79,6 +99,7 @@ describe("drill session", () => {
     expect(advanceDrillClock({ session: running, nowMs: 60_500 })).toEqual({
       kind: "finished",
       score: 3,
+      misses: 2,
       bestScore: 3,
       isNewBest: true,
     })
@@ -89,6 +110,7 @@ describe("drill session", () => {
       session: {
         kind: "finished",
         score: 2,
+        misses: 0,
         bestScore: 5,
         isNewBest: false,
       },

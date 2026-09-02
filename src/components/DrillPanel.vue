@@ -8,6 +8,8 @@ defineProps<{
   bestScore: number
   seconds: string
   urgent: boolean
+  /** True when enter starts and escape exits, so the panel can say so. */
+  keyboardStart: boolean
   start: () => void
   exit: () => void
 }>()
@@ -26,8 +28,12 @@ defineProps<{
         <span>{{ definition.blurb }}</span>
       </div>
       <div class="drill-launch">
-        <span>best {{ bestScore }}</span>
-        <button class="drill-start" @click="start">start drill</button>
+        <span :class="{ reached: bestScore >= definition.target }"
+          >best {{ bestScore }} · target {{ definition.target }}</span
+        >
+        <button class="drill-start" @click="start">
+          start drill<kbd v-if="keyboardStart">enter</kbd>
+        </button>
       </div>
     </template>
     <template v-else-if="session.kind === 'running'">
@@ -39,11 +45,15 @@ defineProps<{
         <span>score</span>
         <strong :key="session.score" class="drill-score-value">{{ session.score }}</strong>
       </div>
+      <div class="drill-metric" :class="{ missed: session.misses > 0 }">
+        <span>over par</span>
+        <strong :key="session.misses" class="drill-score-value">{{ session.misses }}</strong>
+      </div>
       <div class="drill-metric">
         <span>best</span>
         <strong>{{ bestScore }}</strong>
       </div>
-      <button class="drill-exit" @click="exit">exit</button>
+      <button class="drill-exit" @click="exit">exit<kbd v-if="keyboardStart">esc</kbd></button>
     </template>
   </section>
 </template>
@@ -99,6 +109,17 @@ defineProps<{
 .drill-start {
   padding: 6px 13px;
   font-weight: 700;
+}
+.drill-start kbd,
+.drill-exit kbd {
+  margin-left: 7px;
+  font-size: 9px;
+}
+.drill-launch .reached {
+  color: var(--green);
+}
+.drill-metric.missed strong {
+  color: var(--red);
 }
 .drill-start:hover,
 .drill-start:focus-visible {
@@ -157,7 +178,7 @@ defineProps<{
   }
   .drill-panel.active {
     display: grid;
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, 1fr);
   }
   .drill-panel.active .drill-exit {
     grid-column: 1 / -1;

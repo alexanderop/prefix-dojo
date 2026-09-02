@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref, watch } from "vue"
+import { computed, nextTick, ref, watch } from "vue"
 import type { Lesson, TrackGroup } from "../lessons"
 
 const props = defineProps<{
@@ -12,6 +12,13 @@ const props = defineProps<{
 }>()
 
 const closeButton = ref<HTMLButtonElement | null>(null)
+
+/** First lesson in course order that is not cleared yet: where to continue. */
+const nextUp = computed(
+  () =>
+    props.tracks.flatMap((track) => track.items).find((item) => !props.completed.has(item.slug))
+      ?.slug ?? null,
+)
 
 watch(
   () => props.open,
@@ -58,13 +65,28 @@ watch(
           :key="item.slug"
           type="button"
           class="lesson-link"
-          :class="{ current: item.slug === current.slug, cleared: completed.has(item.slug) }"
+          :class="{
+            current: item.slug === current.slug,
+            cleared: completed.has(item.slug),
+            drill: item.input === 'drill',
+            'next-up': item.slug === nextUp,
+          }"
           :aria-current="item.slug === current.slug ? 'step' : undefined"
           :aria-label="`${item.title}, ${completed.has(item.slug) ? 'completed' : 'not completed'}`"
           @click="select(item)"
         >
-          <span class="check" aria-hidden="true">{{ completed.has(item.slug) ? "●" : "○" }}</span>
+          <span class="check" aria-hidden="true">{{
+            item.input === "drill"
+              ? completed.has(item.slug)
+                ? "◆"
+                : "◇"
+              : completed.has(item.slug)
+                ? "●"
+                : "○"
+          }}</span>
           <span class="lesson-link-title">{{ item.title }}</span>
+          <span v-if="item.slug === nextUp" class="next-tag">continue here</span>
+          <span v-else-if="item.input === 'drill'" class="drill-tag" aria-hidden="true">60s</span>
         </button>
       </div>
     </nav>
@@ -160,7 +182,7 @@ watch(
 }
 .lesson-link {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr);
+  grid-template-columns: 12px minmax(0, 1fr) auto;
   gap: 10px;
   align-items: baseline;
   width: 100%;
@@ -194,6 +216,31 @@ watch(
 }
 .lesson-link.cleared .check {
   color: var(--green);
+}
+.lesson-link.drill .check {
+  color: var(--yellow);
+}
+.lesson-link.next-up {
+  color: var(--ink);
+  box-shadow: inset 2px 0 0 var(--spot);
+}
+.next-tag {
+  padding: 0 5px;
+  color: var(--spot-ink);
+  background: var(--spot);
+  font-family: var(--mono);
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.drill-tag {
+  color: var(--yellow);
+  font-family: var(--mono);
+  font-size: 9px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 .lesson-link-title {
   min-width: 0;

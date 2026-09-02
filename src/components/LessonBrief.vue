@@ -8,7 +8,11 @@ const props = defineProps<{
   lesson: Lesson
   state: TrainerState
   position: { current: number; total: number }
+  nextTitle: string | null
+  prevTitle: string | null
   reset: () => void
+  goNext: () => void
+  goPrev: () => void
 }>()
 
 const taskHtml = computed(() => renderKeys(props.lesson.task))
@@ -27,11 +31,31 @@ const steps = computed(
     <div class="brief-head">
       <h2 class="lesson-title">{{ lesson.title }}</h2>
       <p class="lesson-meta">{{ lesson.keymap }} · {{ position.current }} / {{ position.total }}</p>
-      <button class="reset" @click="reset">↺ reset</button>
+      <div class="brief-nav">
+        <button
+          class="nav-btn"
+          type="button"
+          :disabled="prevTitle === null"
+          :title="prevTitle ? `previous: ${prevTitle}` : 'first lesson'"
+          @click="goPrev"
+        >
+          ← prev
+        </button>
+        <button class="nav-btn reset" type="button" @click="reset">↺ reset</button>
+        <button
+          class="nav-btn"
+          type="button"
+          :disabled="nextTitle === null"
+          :title="nextTitle ? `next: ${nextTitle}` : 'last lesson'"
+          @click="goNext"
+        >
+          next →
+        </button>
+      </div>
     </div>
     <!-- Lesson HTML only interpolates our own text into <kbd> tags. -->
-    <p class="lesson-task"><span>DO</span> <span v-html="taskHtml"></span></p>
-    <p class="lesson-body" v-html="bodyHtml"></p>
+    <p class="lesson-body"><span class="tag">WHY</span> <span v-html="bodyHtml"></span></p>
+    <p class="lesson-task"><span class="tag">DO</span> <span v-html="taskHtml"></span></p>
     <ol v-if="steps.length > 0" class="lesson-steps" aria-label="exercise steps">
       <li v-for="(step, index) in steps" :key="index" :class="{ complete: step.done }">
         <span class="step-marker" aria-hidden="true">{{ step.done ? "✓" : index + 1 }}</span>
@@ -63,7 +87,12 @@ const steps = computed(
   color: var(--ink);
   letter-spacing: -0.01em;
 }
-.reset {
+.brief-nav {
+  display: flex;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.nav-btn {
   border: 1px solid var(--line2);
   background: transparent;
   color: var(--faint);
@@ -74,12 +103,18 @@ const steps = computed(
   letter-spacing: 0.1em;
   text-transform: uppercase;
 }
-.reset:hover {
+.nav-btn:hover:not(:disabled),
+.nav-btn:focus-visible {
   color: var(--ink);
   border-color: var(--faint);
+  outline: none;
+}
+.nav-btn:disabled {
+  opacity: 0.35;
+  cursor: default;
 }
 .lesson-task {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   max-width: 92ch;
   line-height: 1.7;
   color: var(--ink);
@@ -90,7 +125,7 @@ const steps = computed(
   font-size: 13px;
   padding: 1px 8px;
 }
-.lesson-task > span:first-child {
+.tag {
   display: inline-block;
   margin-right: 10px;
   padding: 2px 7px;
@@ -101,6 +136,13 @@ const steps = computed(
   font-size: 10px;
   font-weight: 800;
   letter-spacing: 0.14em;
+}
+.lesson-body .tag {
+  color: var(--faint);
+  background: transparent;
+  border: 1px solid var(--line2);
+  font-size: 9px;
+  vertical-align: 1px;
 }
 .lesson-steps {
   display: grid;
@@ -150,8 +192,8 @@ const steps = computed(
   color: var(--green);
 }
 .lesson-body {
-  margin: 5px 0 0;
-  max-width: 82ch;
+  margin: 8px 0 0;
+  max-width: 92ch;
   line-height: 1.6;
   color: var(--faint);
   font-family: var(--body);

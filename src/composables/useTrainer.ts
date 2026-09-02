@@ -3,6 +3,7 @@ import { bestScoreKey, loadBestScore, saveBestScore } from "../drills/scoreStore
 import {
   advanceDrillClock,
   createReadyDrill,
+  finishDrill,
   recordDrillSuccess,
   remainingDrillMs,
   startDrill,
@@ -76,6 +77,18 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
     return (remainingDrillMs({ session, nowMs: drillNowMs.value }) / 1_000).toFixed(1)
   })
   const drillUrgent = computed(() => drillRunning.value && Number(drillSeconds.value) <= 10)
+  /** Par of the round in play, so the HUD can show keys against it. */
+  const drillPar = computed(() => {
+    const session = drillSession.value
+    const definition = drillDefinition.value
+    if (session.kind !== "running" || definition === null) return undefined
+    return definition.par(session.round)
+  })
+
+  function clearIfTargetReached(bestScore: number): void {
+    const definition = drillDefinition.value
+    if (definition !== null && bestScore >= definition.target) options.onCleared(lesson.value)
+  }
 
   function replaceLayout(next: TrainerState): void {
     state.value = next
@@ -85,11 +98,16 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
     resetCount.value += 1
   }
 
-  function commitFinishedDrill(session: FinishedDrillSession): void {
-    drillSession.value = session
+  function persistBest(session: FinishedDrillSession): void {
     if (session.isNewBest && drillKey.value !== null) {
       saveBestScore(localStorage, drillKey.value, session.bestScore)
     }
+    clearIfTargetReached(session.bestScore)
+  }
+
+  function commitFinishedDrill(session: FinishedDrillSession): void {
+    drillSession.value = session
+    persistBest(session)
   }
 
   function startDrillRun(): void {
@@ -103,17 +121,25 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
     replaceLayout(definition.roundState(running.round))
   }
 
+  /** Leaves the drill. A run cut short still keeps whatever it scored. */
   function exitDrill(): void {
     const session = drillSession.value
-    const bestScore = session.kind === "running" ? session.previousBest : session.bestScore
-    drillSession.value = createReadyDrill(bestScore)
+    if (session.kind === "running") {
+      const finished = finishDrill(session)
+      persistBest(finished)
+      drillSession.value = createReadyDrill(finished.bestScore)
+    } else {
+      drillSession.value = createReadyDrill(session.bestScore)
+    }
     replaceLayout(lesson.value.setup())
   }
 
   // ---- lesson lifecycle ----
 
   function reset(): void {
-    drillSession.value = createReadyDrill(storedBest())
+    const bestScore = storedBest()
+    drillSession.value = createReadyDrill(bestScore)
+    clearIfTargetReached(bestScore)
     replaceLayout(lesson.value.setup())
     keyTrail.value = []
     flash.value = null
@@ -146,8 +172,14 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
     const definition = drillDefinition.value
     if (session.kind === "running" && definition !== null) {
       if (!definition.solved(state.value, session.round)) return
-      options.onCleared(lesson.value)
-      const next = recordDrillSuccess({ session, nowMs: performance.now(), createRound })
+      const withinPar = state.value.keystrokes <= definition.par(session.round)
+      const next = recordDrillSuccess({
+        session,
+        nowMs: performance.now(),
+        createRound,
+        withinPar,
+      })
+      flashHud(withinPar ? "good" : "bad")
       if (next.kind === "finished") return commitFinishedDrill(next)
       drillSession.value = next
       state.value = definition.roundState(next.round)
@@ -239,7 +271,9 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
   // ---- clock ----
 
   onMounted(() => {
-    drillSession.value = createReadyDrill(storedBest())
+    const bestScore = storedBest()
+    drillSession.value = createReadyDrill(bestScore)
+    clearIfTargetReached(bestScore)
     ticker = window.setInterval(() => {
       const session = drillSession.value
       if (session.kind === "running") {
@@ -258,6 +292,7 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
   })
 
   return {
+    lesson,
     tool,
     state,
     done,
@@ -273,6 +308,7 @@ export function useTrainer(lesson: Ref<Lesson>, options: { onCleared: (lesson: L
       bestScore: drillBestScore,
       seconds: drillSeconds,
       urgent: drillUrgent,
+      par: drillPar,
       start: startDrillRun,
       exit: exitDrill,
     },

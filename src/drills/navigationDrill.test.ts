@@ -37,6 +37,7 @@ describe("navigation drill", () => {
     expect(round.initialState.activePaneId).not.toBe(round.targetPaneId)
     expect(targetMarkers).toHaveLength(1)
     expect(solved.activePaneId).toBe(round.targetPaneId)
+    expect(solved.keystrokes).toBe(round.par)
   })
 
   it("does not repeat the previous layout", () => {

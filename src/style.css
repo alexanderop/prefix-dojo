@@ -104,6 +104,70 @@ body {
   text-transform: uppercase;
   cursor: pointer;
 }
+.progress-actions {
+  position: relative;
+}
+.progress-actions summary,
+.progress-actions-menu button {
+  border: 1px solid var(--line2);
+  background: var(--panel);
+  color: var(--spot);
+  padding: 5px 10px;
+  font: inherit;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  cursor: pointer;
+}
+.progress-actions summary {
+  list-style: none;
+}
+.progress-actions summary::-webkit-details-marker {
+  display: none;
+}
+.progress-actions summary:hover,
+.progress-actions summary:focus-visible,
+.progress-actions-menu button:hover,
+.progress-actions-menu button:focus-visible {
+  border-color: var(--spot);
+  outline: none;
+}
+.progress-actions-menu {
+  position: absolute;
+  z-index: 8;
+  top: calc(100% + 7px);
+  right: 0;
+  display: grid;
+  gap: 5px;
+  width: 190px;
+  padding: 7px;
+  border: 1px solid var(--line2);
+  background: var(--bg);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.progress-actions-menu button {
+  width: 100%;
+  text-align: left;
+}
+.progress-actions-menu .progress-reset {
+  color: var(--red);
+}
+.progress-notice {
+  position: fixed;
+  z-index: 12;
+  right: 22px;
+  bottom: 22px;
+  margin: 0;
+  padding: 10px 14px;
+  border: 1px solid var(--green);
+  background: var(--term-active);
+  color: var(--green);
+  letter-spacing: 0.04em;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.45);
+}
+.progress-notice.is-error {
+  border-color: var(--red);
+  color: var(--red);
+}
 .lesson-drawer-toggle:hover,
 .lesson-drawer-toggle:focus-visible {
   border-color: var(--spot);

@@ -1,6 +1,21 @@
 import { navigationDrill } from "../drills/navigationDrill"
+import { tmuxMixedDrill, tmuxPaneDrill, tmuxWindowDrill } from "../drills/tmuxDrills"
 import { did, initialState, leaf } from "../engine/multiplexer"
-import { G, Y, R, C, DIM, X, shellPane, splitRow, splitColumn, hasSplit, oneShell } from "./helpers"
+import {
+  G,
+  Y,
+  R,
+  C,
+  DIM,
+  X,
+  shellPane,
+  splitRow,
+  splitColumn,
+  hasSplit,
+  oneShell,
+  outsideShell,
+  drillLesson,
+} from "./helpers"
 import type { Lesson } from "./types"
 
 export const tmuxLessons: Lesson[] = [
@@ -15,7 +30,7 @@ export const tmuxLessons: Lesson[] = [
       "tmux starts a server, creates the work session, and attaches your terminal as a client. Run [tmux ls] to list sessions and [tmux attach -t work] to return.",
     keymap: "tmux",
     input: "shell",
-    setup: () => oneShell(`${DIM}# normal shell outside tmux${X}`),
+    setup: () => outsideShell(`${DIM}# normal shell outside tmux${X}`),
     goal: (state) => did(state, "started-tmux"),
   },
   {
@@ -65,7 +80,6 @@ export const tmuxLessons: Lesson[] = [
   },
   {
     slug: "tmux-navigate",
-    drill: navigationDrill,
     track: "tmux",
     module: "Panes",
     title: "Move between panes",
@@ -108,6 +122,13 @@ export const tmuxLessons: Lesson[] = [
       }),
     goal: (state) => did(state, "zoomed-pane"),
   },
+  drillLesson({
+    slug: "tmux-drill-navigate",
+    track: "tmux",
+    module: "Panes",
+    drill: navigationDrill,
+  }),
+  drillLesson({ slug: "tmux-drill-panes", track: "tmux", module: "Panes", drill: tmuxPaneDrill }),
   {
     slug: "tmux-windows",
     track: "tmux",
@@ -124,6 +145,12 @@ export const tmuxLessons: Lesson[] = [
     goal: (state) =>
       did(state, "opened-tab") && did(state, "switched-tab") && state.activeTab === 0,
   },
+  drillLesson({
+    slug: "tmux-drill-windows",
+    track: "tmux",
+    module: "Windows",
+    drill: tmuxWindowDrill,
+  }),
   {
     slug: "tmux-copy",
     track: "tmux",
@@ -188,4 +215,10 @@ export const tmuxLessons: Lesson[] = [
       }),
     goal: (state) => state.detached,
   },
+  drillLesson({
+    slug: "tmux-drill-mixed",
+    track: "tmux",
+    module: "Final drill",
+    drill: tmuxMixedDrill,
+  }),
 ]

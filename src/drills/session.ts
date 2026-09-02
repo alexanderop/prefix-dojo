@@ -8,7 +8,10 @@ export interface ReadyDrillSession {
 export interface RunningDrillSession<Round> {
   kind: "running"
   previousBest: number
+  /** Rounds solved within par. */
   score: number
+  /** Rounds solved, but with more keys than par. */
+  misses: number
   deadlineMs: number
   round: Round
 }
@@ -16,6 +19,7 @@ export interface RunningDrillSession<Round> {
 export interface FinishedDrillSession {
   kind: "finished"
   score: number
+  misses: number
   bestScore: number
   isNewBest: boolean
 }
@@ -43,16 +47,18 @@ export function startDrill<Round>({
     kind: "running",
     previousBest: session.bestScore,
     score: 0,
+    misses: 0,
     deadlineMs: nowMs + DRILL_DURATION_MS,
     round: createRound(null),
   }
 }
 
-function finishDrill<Round>(session: RunningDrillSession<Round>): FinishedDrillSession {
+export function finishDrill<Round>(session: RunningDrillSession<Round>): FinishedDrillSession {
   const isNewBest = session.score > session.previousBest
   return {
     kind: "finished",
     score: session.score,
+    misses: session.misses,
     bestScore: isNewBest ? session.score : session.previousBest,
     isNewBest,
   }
@@ -68,19 +74,26 @@ export function advanceDrillClock<Round>({
   return nowMs < session.deadlineMs ? session : finishDrill(session)
 }
 
+/**
+ * Moves to the next round after a solve. Only a solve within par scores;
+ * an over-par solve is counted as a miss so the learner sees the fumble.
+ */
 export function recordDrillSuccess<Round>({
   session,
   nowMs,
   createRound,
+  withinPar = true,
 }: {
   session: RunningDrillSession<Round>
   nowMs: number
   createRound: CreateRound<Round>
+  withinPar?: boolean
 }): RunningDrillSession<Round> | FinishedDrillSession {
   if (nowMs >= session.deadlineMs) return finishDrill(session)
   return {
     ...session,
-    score: session.score + 1,
+    score: withinPar ? session.score + 1 : session.score,
+    misses: withinPar ? session.misses : session.misses + 1,
     round: createRound(session.round),
   }
 }

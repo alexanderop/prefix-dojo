@@ -1,6 +1,21 @@
 /** Model, panes, tabs, workspaces, layout, and history. */
+import { herdrHistoryDrill, herdrPaneDrill, herdrTabDrill } from "../../drills/herdrDrills"
 import { did, initialState, leaf, leaves } from "../../engine/multiplexer"
-import { B, G, Y, R, C, DIM, X, shellPane, splitRow, splitColumn, oneShell } from "../helpers"
+import {
+  B,
+  G,
+  Y,
+  R,
+  C,
+  DIM,
+  X,
+  shellPane,
+  splitRow,
+  splitColumn,
+  oneShell,
+  outsideShell,
+  drillLesson,
+} from "../helpers"
 import type { Lesson } from "../types"
 
 export const lessons: Lesson[] = [
@@ -15,7 +30,7 @@ export const lessons: Lesson[] = [
       "The command starts or attaches to the default background session and opens a workspace. Herdr is one Rust binary. It runs in your existing terminal and does not require an account.",
     keymap: "herdr",
     input: "shell",
-    setup: () => oneShell(`${DIM}~/projects/webapp  # normal shell${X}`),
+    setup: () => outsideShell(`${DIM}~/projects/webapp  # normal shell${X}`),
     goal: (state) => did(state, "started-herdr"),
   },
   {
@@ -133,6 +148,12 @@ export const lessons: Lesson[] = [
       }),
     goal: (state) => did(state, "swapped-pane") && did(state, "cycled-pane"),
   },
+  drillLesson({
+    slug: "herdr-drill-panes",
+    track: "herdr",
+    module: "Panes",
+    drill: herdrPaneDrill,
+  }),
   {
     slug: "herdr-tabs",
     track: "herdr",
@@ -204,6 +225,12 @@ export const lessons: Lesson[] = [
       }),
     goal: (state) => did(state, "opened-goto") && state.mode.kind === "terminal",
   },
+  drillLesson({
+    slug: "herdr-drill-tabs",
+    track: "herdr",
+    module: "Workspaces",
+    drill: herdrTabDrill,
+  }),
   {
     slug: "herdr-zoom-resize",
     track: "herdr",
@@ -295,4 +322,10 @@ export const lessons: Lesson[] = [
       }),
     goal: (state) => did(state, "searched-history") && did(state, "repeated-search"),
   },
+  drillLesson({
+    slug: "herdr-drill-history",
+    track: "herdr",
+    module: "History",
+    drill: herdrHistoryDrill,
+  }),
 ]

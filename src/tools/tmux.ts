@@ -97,6 +97,7 @@ export const tmux: Tool = {
     {
       pattern: /^tmux attach -t work$/,
       run: (state) => {
+        state.detached = false
         state.lastAction = "attached to tmux session work"
         return [`${DIM}attached to session: work${RESET}`]
       },
@@ -104,6 +105,7 @@ export const tmux: Tool = {
     {
       pattern: /^tmux new -s work$/,
       run: (state) => {
+        state.detached = false
         state.lastAction = "created and attached to tmux session work"
         record(state, "started-tmux")
         return [`${GREEN}created${RESET}  session: work`]

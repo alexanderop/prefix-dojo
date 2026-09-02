@@ -38,6 +38,7 @@ const shellCommands: ShellCommandRule[] = [
   {
     pattern: /^herdr$/,
     run: (state) => {
+      state.detached = false
       state.lastAction = "started or attached to the default Herdr session"
       record(state, "started-herdr")
       return [`${GREEN}attached${RESET}  default session · workspace: project`]
@@ -46,6 +47,7 @@ const shellCommands: ShellCommandRule[] = [
   {
     pattern: /^herdr --remote workbox$/,
     run: (state) => {
+      state.detached = false
       state.lastAction = "attached to workbox through SSH"
       record(state, "remote-attached")
       return [`${GREEN}connected${RESET}  workbox · default session`]

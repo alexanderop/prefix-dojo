@@ -2,7 +2,7 @@ import type { DrillDefinition } from "../drills/definition"
 import type { Keymap, TrainerState } from "../engine/multiplexer"
 
 export type Track = "tmux" | "herdr"
-export type InputKind = "keyboard" | "mouse" | "shell"
+export type InputKind = "keyboard" | "mouse" | "shell" | "drill"
 
 export interface LessonStep {
   text: string
@@ -23,7 +23,10 @@ export interface Lesson {
   input: InputKind
   /** Keystroke count a clean solution needs; shown next to the counter. */
   par?: number
-  /** Optional timed drill the lesson offers once its layout is understood. */
+  /**
+   * Timed drill the lesson offers. A lesson with `input: "drill"` is the
+   * drill itself and clears once the best score reaches the drill's target.
+   */
   drill?: DrillDefinition
   setup: () => TrainerState
   goal: (state: TrainerState) => boolean
